@@ -35,7 +35,6 @@ pub const Arg = struct {
     pub fn short(self: Arg, c: u8) Arg {
         var a = self;
         a.short_char = c;
-        if (a.action_val == .set and a.value_name == null) a.action_val = .set_true;
         return a;
     }
 
@@ -43,7 +42,6 @@ pub const Arg = struct {
         var a = self;
         a.long_name = name;
         if (a.id.len == 0) a.id = name;
-        if (a.action_val == .set and a.value_name == null) a.action_val = .set_true;
         return a;
     }
 

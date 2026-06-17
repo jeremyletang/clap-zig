@@ -1,0 +1,28 @@
+# Zig build artifacts
+.zig-cache/
+zig-cache/
+zig-out/
+zig-pkg
+
+# Backups and scratch
+*.old
+*.bak
+*.tmp
+*~
+*.swp
+*.swo
+
+# OS junk
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Editor / IDE
+.vscode/
+.idea/
+*.iml
+
+# Claude Code (per-developer; not committed)
+/.claude/
+/.mcp.json
+/CLAUDE.md

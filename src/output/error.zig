@@ -66,7 +66,7 @@ fn appendMessage(b: *Buf, e: errors.Error) void {
         },
         .unknown_argument => b.print("unexpected argument '{s}' found", .{arg}),
         .no_equals => b.print("equal sign is needed when assigning values to '{s}'", .{arg}),
-        .too_many_values => b.print("unexpected value '{s}' for '{s}'", .{ e.value orelse "", arg }),
+        .too_many_values => b.print("unexpected value '{s}' for '{s}' found; no more were expected", .{ e.value orelse "", arg }),
         .argument_conflict => {
             if (e.value) |other| {
                 b.print("the argument '{s}' cannot be used with '{s}'", .{ arg, other });

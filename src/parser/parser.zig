@@ -243,7 +243,8 @@ const Parser = struct {
         if (self.reuseError(a)) |e| return .{ .err = e };
         if (!a.takesValue()) {
             if (l.value != null) {
-                return .{ .err = self.mkErr(.too_many_values, self.dashed(l.name), l.value) };
+                const used = self.allocator.dupe([]const u8, &.{a.id}) catch @panic("clap: OOM");
+                return .{ .err = .{ .kind = .too_many_values, .cmd = self.cmd, .arg = self.dashed(l.name), .value = l.value, .used_ids = used } };
             }
             self.recordArg(a, &.{}, .command_line);
             return .values_done;

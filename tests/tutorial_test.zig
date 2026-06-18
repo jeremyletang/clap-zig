@@ -9,6 +9,7 @@ const required = @import("required");
 const possible = @import("possible");
 const parse = @import("parse");
 const validate = @import("validate");
+const relations = @import("relations");
 
 const RunFn = *const fn (std.mem.Allocator, []const []const u8, *std.ArrayList(u8)) u8;
 
@@ -101,6 +102,52 @@ test "03_06_required" {
         "Usage: 03_06_required <name>\n" ++
         "\n" ++
         "For more information, try '--help'.\n");
+}
+
+const relations_help =
+    "A simple to use, efficient, and full-featured Command Line Argument Parser\n" ++
+    "\n" ++
+    "Usage: 04_03_relations [OPTIONS] <--set-ver <VER>|--major|--minor|--patch> [INPUT_FILE]\n" ++
+    "\n" ++
+    "Arguments:\n" ++
+    "  [INPUT_FILE]  some regular input\n" ++
+    "\n" ++
+    "Options:\n" ++
+    "      --set-ver <VER>      set version manually\n" ++
+    "      --major              auto inc major\n" ++
+    "      --minor              auto inc minor\n" ++
+    "      --patch              auto inc patch\n" ++
+    "      --spec-in <SPEC_IN>  some special input argument\n" ++
+    "  -c <CONFIG>              \n" ++
+    "  -h, --help               Print help\n" ++
+    "  -V, --version            Print version\n";
+
+test "04_03_relations" {
+    try expectRun(relations.run, &.{"--help"}, 0, relations_help);
+    try expectRun(relations.run, &.{"--major"}, 0, "Version: 2.2.3\n");
+    try expectRun(relations.run, &.{ "--major", "--minor" }, 2,
+        "error: the argument '--major' cannot be used with '--minor'\n" ++
+        "\n" ++
+        "Usage: 04_03_relations <--set-ver <VER>|--major|--minor|--patch> [INPUT_FILE]\n" ++
+        "\n" ++
+        "For more information, try '--help'.\n");
+    try expectRun(relations.run, &.{}, 2,
+        "error: the following required arguments were not provided:\n" ++
+        "  <--set-ver <VER>|--major|--minor|--patch>\n" ++
+        "\n" ++
+        "Usage: 04_03_relations <--set-ver <VER>|--major|--minor|--patch> [INPUT_FILE]\n" ++
+        "\n" ++
+        "For more information, try '--help'.\n");
+    try expectRun(relations.run, &.{ "--major", "-c", "config.toml" }, 2,
+        "error: the following required arguments were not provided:\n" ++
+        "  <INPUT_FILE|--spec-in <SPEC_IN>>\n" ++
+        "\n" ++
+        "Usage: 04_03_relations -c <CONFIG> <--set-ver <VER>|--major|--minor|--patch> <INPUT_FILE|--spec-in <SPEC_IN>>\n" ++
+        "\n" ++
+        "For more information, try '--help'.\n");
+    try expectRun(relations.run, &.{ "--major", "-c", "config.toml", "--spec-in", "input.txt" }, 0,
+        "Version: 2.2.3\n" ++
+        "Doing work using input input.txt and config config.toml\n");
 }
 
 test "04_02_parse" {

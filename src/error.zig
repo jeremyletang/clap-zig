@@ -45,4 +45,7 @@ pub const Error = struct {
     possible_values: ?[]const []const u8 = null,
     /// failure reason shown after the colon, for `invalid_value` from a value parser
     reason: ?[]const u8 = null,
+    /// ids (present + missing-required) for contextual "smart" usage; when null,
+    /// the renderer uses the help-style usage (with `[OPTIONS]`)
+    used_ids: ?[]const []const u8 = null,
 };

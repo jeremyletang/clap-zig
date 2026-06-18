@@ -37,7 +37,7 @@ pub fn render(allocator: std.mem.Allocator, e: errors.Error) []const u8 {
     b.addByte('\n');
     if (usesUsage(e.kind)) {
         b.addByte('\n');
-        b.add(usage.render(allocator, e.cmd));
+        b.add(usage.errorUsage(allocator, e.cmd, e.used_ids orelse &.{}));
         b.addByte('\n');
     }
     b.add("\nFor more information, try '--help'.\n");
@@ -67,7 +67,13 @@ fn appendMessage(b: *Buf, e: errors.Error) void {
         .unknown_argument => b.print("unexpected argument '{s}' found", .{arg}),
         .no_equals => b.print("equal sign is needed when assigning values to '{s}'", .{arg}),
         .too_many_values => b.print("unexpected value '{s}' for '{s}'", .{ e.value orelse "", arg }),
-        .argument_conflict => b.print("the argument '{s}' cannot be used with a subcommand", .{arg}),
+        .argument_conflict => {
+            if (e.value) |other| {
+                b.print("the argument '{s}' cannot be used with '{s}'", .{ arg, other });
+            } else {
+                b.print("the argument '{s}' cannot be used with a subcommand", .{arg});
+            }
+        },
         .argument_used_multiple_times => b.print("the argument '{s}' cannot be used multiple times", .{arg}),
         .invalid_subcommand => b.print("unrecognized subcommand '{s}'", .{arg}),
         .missing_required_argument => {

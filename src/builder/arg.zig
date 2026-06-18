@@ -27,6 +27,8 @@ pub const Arg = struct {
     default_missing_value: ?[]const u8 = null,
     possible_values: ?[]const []const u8 = null,
     value_parser_fn: ?value_parser.ParserFn = null,
+    group_id: ?[]const u8 = null,
+    requires_id: ?[]const u8 = null,
 
     pub fn new(id: []const u8) Arg {
         return .{ .id = id };
@@ -116,6 +118,20 @@ pub const Arg = struct {
     pub fn valueParserFn(self: Arg, f: value_parser.ParserFn) Arg {
         var a = self;
         a.value_parser_fn = f;
+        return a;
+    }
+
+    /// Add this argument to a named `ArgGroup`.
+    pub fn group(self: Arg, id: []const u8) Arg {
+        var a = self;
+        a.group_id = id;
+        return a;
+    }
+
+    /// Require that the named arg/group also be present when this one is.
+    pub fn requires(self: Arg, id: []const u8) Arg {
+        var a = self;
+        a.requires_id = id;
         return a;
     }
 

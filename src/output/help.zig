@@ -40,7 +40,7 @@ fn renderFlattened(b: *Buf, cmd: *const Command) void {
         b.add("\n\n");
     }
     b.add("Usage: ");
-    usage.appendBody(b, cmd, false);
+    b.add(usage.appendBody(b.allocator, cmd, false));
     b.addByte('\n');
     for (cmd.subcommands.items) |*sc| usageLine(b, sc);
     const help_sub = makeHelpSubcommand(b.allocator, cmd);
@@ -55,7 +55,7 @@ fn renderFlattened(b: *Buf, cmd: *const Command) void {
 
 fn usageLine(b: *Buf, cmd: *const Command) void {
     b.spaces(7); // align under "Usage: "
-    usage.appendBody(b, cmd, true);
+    b.add(usage.appendBody(b.allocator, cmd, true));
     b.addByte('\n');
 }
 

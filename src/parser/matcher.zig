@@ -114,6 +114,19 @@ pub const ArgMatches = struct {
         return self.sub;
     }
 
+    /// Ids supplied on the command line (defaults excluded), for building
+    /// contextual error usage. Order is unspecified (hash-map iteration).
+    pub fn presentIds(self: *const ArgMatches, allocator: std.mem.Allocator) [][]const u8 {
+        var ids: std.ArrayListUnmanaged([]const u8) = .empty;
+        var it = self.map.iterator();
+        while (it.next()) |entry| {
+            if (entry.value_ptr.source == .command_line) {
+                ids.append(allocator, entry.key_ptr.*) catch @panic("clap: OOM");
+            }
+        }
+        return ids.items;
+    }
+
     /// Whether this command saw any command-line arg or subcommand (defaults
     /// don't count) — used by `arg_required_else_help`.
     pub fn suppliedAnything(self: *const ArgMatches) bool {

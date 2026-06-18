@@ -1,7 +1,9 @@
 const std = @import("std");
 const arg = @import("arg.zig");
+const arg_group = @import("arg_group.zig");
 
 const Arg = arg.Arg;
+const ArgGroup = arg_group.ArgGroup;
 
 /// A command (or subcommand): a name, settings, its arguments, and nested
 /// subcommands. Port of clap's `Command`:
@@ -19,6 +21,7 @@ pub const Command = struct {
     version_str: ?[]const u8 = null,
     arg_list: std.ArrayListUnmanaged(Arg) = .empty,
     subcommands: std.ArrayListUnmanaged(Command) = .empty,
+    groups: std.ArrayListUnmanaged(ArgGroup) = .empty,
 
     subcommand_required: bool = false,
     arg_required_else_help: bool = false,
@@ -37,6 +40,7 @@ pub const Command = struct {
         for (self.subcommands.items) |*sc| sc.deinit();
         self.subcommands.deinit(self.allocator);
         self.arg_list.deinit(self.allocator);
+        self.groups.deinit(self.allocator);
     }
 
     // ----- builder setters -----
@@ -83,6 +87,12 @@ pub const Command = struct {
     pub fn subcommand(self: Command, cmd: Command) Command {
         var c = self;
         c.subcommands.append(c.allocator, cmd) catch @panic("clap: OOM building command");
+        return c;
+    }
+
+    pub fn group(self: Command, g: ArgGroup) Command {
+        var c = self;
+        c.groups.append(c.allocator, g) catch @panic("clap: OOM building command");
         return c;
     }
 
@@ -185,6 +195,59 @@ pub const Command = struct {
             if (std.mem.eql(u8, sc.name, name)) return sc;
         }
         return null;
+    }
+
+    pub fn findGroup(self: *const Command, id: []const u8) ?*const ArgGroup {
+        for (self.groups.items) |*g| {
+            if (std.mem.eql(u8, g.id, id)) return g;
+        }
+        return null;
+    }
+
+    /// Whether `a` belongs to group `g` (via `Arg.group()` or `ArgGroup.args()`).
+    pub fn argInGroup(self: *const Command, a: *const Arg, g: *const ArgGroup) bool {
+        _ = self;
+        if (a.group_id) |gid| {
+            if (std.mem.eql(u8, gid, g.id)) return true;
+        }
+        for (g.member_ids) |id| {
+            if (std.mem.eql(u8, id, a.id)) return true;
+        }
+        return false;
+    }
+
+    /// Membership by group id — also resolves implicit groups (a group named only
+    /// via `Arg.group("x")`, with no `ArgGroup` object).
+    pub fn argInGroupId(self: *const Command, a: *const Arg, id: []const u8) bool {
+        if (a.group_id) |gid| {
+            if (std.mem.eql(u8, gid, id)) return true;
+        }
+        if (self.findGroup(id)) |g| {
+            for (g.member_ids) |m| {
+                if (std.mem.eql(u8, m, a.id)) return true;
+            }
+        }
+        return false;
+    }
+
+    /// Whether `id` names a group (declared or implicit) rather than an argument.
+    pub fn isGroupId(self: *const Command, id: []const u8) bool {
+        if (self.findGroup(id) != null) return true;
+        for (self.arg_list.items) |*a| {
+            if (a.group_id) |gid| {
+                if (std.mem.eql(u8, gid, id)) return true;
+            }
+        }
+        return false;
+    }
+
+    /// Whether `a` is a member of any `required` group (such args are shown in a
+    /// group token in usage rather than under `[OPTIONS]`).
+    pub fn argInRequiredGroup(self: *const Command, a: *const Arg) bool {
+        for (self.groups.items) |*g| {
+            if (g.is_required and self.argInGroup(a, g)) return true;
+        }
+        return false;
     }
 };
 

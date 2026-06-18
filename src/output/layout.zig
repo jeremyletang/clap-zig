@@ -1,7 +1,9 @@
 const std = @import("std");
 const arg = @import("../builder/arg.zig");
+const command = @import("../builder/command.zig");
 
 const Arg = arg.Arg;
+const Command = command.Command;
 
 /// Small append-only string builder for help/usage/error rendering. Allocates
 /// from the supplied (arena) allocator and panics on failure, matching the rest
@@ -86,5 +88,27 @@ pub fn argUsageStr(allocator: std.mem.Allocator, a: *const Arg) []const u8 {
         b.add(a.value_name orelse a.id);
         b.add(">");
     }
+    return b.items();
+}
+
+/// How an argument appears inside a group token: a bare value name for a
+/// positional (`INPUT_FILE`), otherwise its option usage (`--major`, `--spec-in <SPEC_IN>`).
+pub fn memberNotation(allocator: std.mem.Allocator, a: *const Arg) []const u8 {
+    if (a.isPositional()) return a.value_name orelse a.id;
+    return argUsageStr(allocator, a);
+}
+
+/// A group as shown in usage / errors: `<member1|member2|...>` in definition order.
+pub fn groupNotation(allocator: std.mem.Allocator, cmd: *const Command, id: []const u8) []const u8 {
+    var b = Buf{ .allocator = allocator };
+    b.add("<");
+    var first = true;
+    for (cmd.arg_list.items) |*a| {
+        if (!cmd.argInGroupId(a, id)) continue;
+        if (!first) b.add("|");
+        b.add(memberNotation(allocator, a));
+        first = false;
+    }
+    b.add(">");
     return b.items();
 }

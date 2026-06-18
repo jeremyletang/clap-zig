@@ -286,7 +286,7 @@ const Parser = struct {
                 self.recordArg(a, &.{}, .command_line);
                 return .values_done;
             }
-            return .{ .err = self.mkErr(.no_equals, self.argDisplay(a), null) };
+            return .{ .err = self.mkErr(.no_equals, self.eqDisplay(a), null) };
         }
         if (attached) |v| {
             self.recordArg(a, &.{v}, .command_line);
@@ -368,6 +368,13 @@ const Parser = struct {
         if (a.long_name) |l| return self.dashed(l);
         if (a.short_char) |c| return self.shortDisplay(c);
         return a.id;
+    }
+
+    /// Display for a require_equals option in a no-equals error: `--config=<cfg>`.
+    fn eqDisplay(self: *Parser, a: *const Arg) []const u8 {
+        const flag = self.argDisplay(a);
+        return std.fmt.allocPrint(self.allocator, "{s}=<{s}>", .{ flag, a.value_name orelse a.id }) catch
+            @panic("clap: OOM");
     }
 };
 

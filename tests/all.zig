@@ -4,4 +4,6 @@ test {
     _ = @import("snapshot_test.zig");
     _ = @import("escaped_positional_test.zig");
     _ = @import("tutorial_test.zig");
+    _ = @import("clap_opts_test.zig");
+    _ = @import("coverage_test.zig");
 }

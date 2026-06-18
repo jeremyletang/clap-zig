@@ -41,6 +41,10 @@ pub fn build(b: *std.Build) void {
     const validate_mod = addExample(b, clap, harness, "04_02_validate", "validate", "examples/04_02_validate.zig");
     const relations_mod = addExample(b, clap, harness, "04_03_relations", "relations", "examples/04_03_relations.zig");
 
+    // coverage tracking data (generated universe + hand-maintained manifest)
+    const universe_mod = b.createModule(.{ .root_source_file = b.path("tests/clap_universe.zig"), .target = target, .optimize = optimize });
+    const coverage_mod = b.createModule(.{ .root_source_file = b.path("tests/coverage.zig"), .target = target, .optimize = optimize });
+
     // integration tests (tests/) consume the public `clap` module + the example modules
     const tests_mod = b.createModule(.{
         .root_source_file = b.path("tests/all.zig"),
@@ -48,6 +52,8 @@ pub fn build(b: *std.Build) void {
         .optimize = optimize,
     });
     tests_mod.addImport("clap", clap);
+    tests_mod.addImport("clap_universe", universe_mod);
+    tests_mod.addImport("coverage", coverage_mod);
     tests_mod.addImport("git", git_mod);
     tests_mod.addImport("escaped_positional", escaped_mod);
     tests_mod.addImport("flag_bool", flag_bool_mod);
@@ -65,6 +71,17 @@ pub fn build(b: *std.Build) void {
         .filters = if (test_filter) |f| &.{f} else &.{},
     });
     test_step.dependOn(&b.addRunArtifact(integration_tests).step);
+
+    // `zig build coverage` — report progress porting clap's test suite
+    const report_mod = b.createModule(.{
+        .root_source_file = b.path("tools/coverage_report.zig"),
+        .target = target,
+        .optimize = optimize,
+    });
+    report_mod.addImport("clap_universe", universe_mod);
+    report_mod.addImport("coverage", coverage_mod);
+    const report_exe = b.addExecutable(.{ .name = "coverage-report", .root_module = report_mod });
+    b.step("coverage", "Report clap test-suite coverage").dependOn(&b.addRunArtifact(report_exe).step);
 }
 
 /// Create an example module, build+install it as an executable, and add a

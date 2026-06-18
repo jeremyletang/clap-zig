@@ -104,6 +104,12 @@ pub const ArgMatches = struct {
         return self.getOne(bool, id) orelse false;
     }
 
+    /// Number of occurrences of a `Count`-action argument (0 if absent).
+    pub fn getCount(self: *const ArgMatches, id: []const u8) usize {
+        const m = self.map.getPtr(id) orelse return 0;
+        return m.occurrences;
+    }
+
     pub fn subcommand(self: *const ArgMatches) ?Subcommand {
         return self.sub;
     }

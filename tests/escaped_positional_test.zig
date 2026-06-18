@@ -36,8 +36,8 @@ test "escaped-positional: help" {
 test "escaped-positional: baseline (no args)" {
     try expectRun(&.{}, 0,
         "-f used: false\n" ++
-        "-p's value: None\n" ++
-        "'slops' values: []\n");
+        "-p's value: (none)\n" ++
+        "'slops' values: (none)\n");
 }
 
 test "escaped-positional: positional before -- is rejected" {
@@ -52,13 +52,13 @@ test "escaped-positional: positional before -- is rejected" {
 test "escaped-positional: flags then escaped slop" {
     try expectRun(&.{ "-f", "-p=bob", "--", "sloppy", "slop", "slop" }, 0,
         "-f used: true\n" ++
-        "-p's value: Some(\"bob\")\n" ++
-        "'slops' values: [\"sloppy\", \"slop\", \"slop\"]\n");
+        "-p's value: bob\n" ++
+        "'slops' values: sloppy, slop, slop\n");
 }
 
 test "escaped-positional: everything after -- passes through" {
     try expectRun(&.{ "--", "-f", "-p=bob", "sloppy", "slop", "slop" }, 0,
         "-f used: false\n" ++
-        "-p's value: None\n" ++
-        "'slops' values: [\"-f\", \"-p=bob\", \"sloppy\", \"slop\", \"slop\"]\n");
+        "-p's value: (none)\n" ++
+        "'slops' values: -f, -p=bob, sloppy, slop, slop\n");
 }

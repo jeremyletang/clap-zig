@@ -65,7 +65,7 @@ pub fn getMatches(allocator: std.mem.Allocator, cmd: *const Command, argv: []con
     switch (parse(allocator, cmd, argv)) {
         .err => |e| return .{ .err = e },
         .matches => |m| {
-            if (validator.validate(cmd, m)) |e| return .{ .err = e };
+            if (validator.validate(allocator, cmd, m)) |e| return .{ .err = e };
             return .{ .matches = m };
         },
     }
@@ -239,6 +239,7 @@ const Parser = struct {
         const a = self.cmd.findArgByLong(l.name) orelse
             return .{ .err = self.mkErr(.unknown_argument, self.dashed(l.name), null) };
         self.valid_arg_found = true;
+        if (self.reuseError(a)) |e| return .{ .err = e };
         if (!a.takesValue()) {
             if (l.value != null) {
                 return .{ .err = self.mkErr(.too_many_values, self.dashed(l.name), l.value) };
@@ -263,6 +264,7 @@ const Parser = struct {
             const a = self.cmd.findArgByShort(c) orelse
                 return .{ .err = self.mkErr(.unknown_argument, self.shortDisplay(c), null) };
             self.valid_arg_found = true;
+            if (self.reuseError(a)) |e| return .{ .err = e };
             if (!a.takesValue()) {
                 self.recordArg(a, &.{}, .command_line);
                 continue;
@@ -344,6 +346,13 @@ const Parser = struct {
 
     fn mkErr(self: *Parser, kind: errors.ErrorKind, name: ?[]const u8, value: ?[]const u8) Error {
         return .{ .kind = kind, .cmd = self.cmd, .arg = name, .value = value };
+    }
+
+    /// A non-multiple flag/option used a second time on the command line is an error.
+    fn reuseError(self: *Parser, a: *const Arg) ?Error {
+        if (a.isMultiple() or !self.matches.isPresent(a.id)) return null;
+        const disp = if (a.long_name) |l| self.dashed(l) else self.shortDisplay(a.short_char.?);
+        return self.mkErr(.argument_used_multiple_times, disp, null);
     }
 
     fn dashed(self: *Parser, name: []const u8) []const u8 {

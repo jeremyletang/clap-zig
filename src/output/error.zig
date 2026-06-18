@@ -34,20 +34,40 @@ pub fn render(allocator: std.mem.Allocator, e: errors.Error) []const u8 {
     var b = Buf{ .allocator = allocator };
     b.add("error: ");
     appendMessage(&b, e);
-    b.add("\n\n");
-    b.add(usage.render(allocator, e.cmd));
-    b.add("\n\nFor more information, try '--help'.\n");
+    b.addByte('\n');
+    if (usesUsage(e.kind)) {
+        b.addByte('\n');
+        b.add(usage.render(allocator, e.cmd));
+        b.addByte('\n');
+    }
+    b.add("\nFor more information, try '--help'.\n");
     return b.items();
+}
+
+/// Whether this error kind prints a `Usage:` block (clap omits it for invalid_value).
+fn usesUsage(kind: errors.ErrorKind) bool {
+    return kind != .invalid_value;
 }
 
 fn appendMessage(b: *Buf, e: errors.Error) void {
     const arg = e.arg orelse "";
     switch (e.kind) {
-        .invalid_value => b.print("invalid value '{s}' for '{s}'", .{ e.value orelse "", arg }),
+        .invalid_value => {
+            b.print("invalid value '{s}' for '{s}'", .{ e.value orelse "", arg });
+            if (e.possible_values) |pv| {
+                b.add("\n  [possible values: ");
+                for (pv, 0..) |v, i| {
+                    if (i != 0) b.add(", ");
+                    b.add(v);
+                }
+                b.add("]");
+            }
+        },
         .unknown_argument => b.print("unexpected argument '{s}' found", .{arg}),
         .no_equals => b.print("equal sign is needed when assigning values to '{s}'", .{arg}),
         .too_many_values => b.print("unexpected value '{s}' for '{s}'", .{ e.value orelse "", arg }),
         .argument_conflict => b.print("the argument '{s}' cannot be used with a subcommand", .{arg}),
+        .argument_used_multiple_times => b.print("the argument '{s}' cannot be used multiple times", .{arg}),
         .invalid_subcommand => b.print("unrecognized subcommand '{s}'", .{arg}),
         .missing_required_argument => {
             b.add("the following required arguments were not provided:\n  ");

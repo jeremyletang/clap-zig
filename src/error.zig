@@ -19,6 +19,7 @@ pub const ErrorKind = enum {
     missing_required_argument,
     missing_subcommand,
     argument_conflict,
+    argument_used_multiple_times,
 
     /// Whether this kind is a successful help/version display (exit 0) vs an error (exit 2).
     pub fn isSuccess(self: ErrorKind) bool {
@@ -40,4 +41,6 @@ pub const Error = struct {
     arg: ?[]const u8 = null,
     /// the offending value, when relevant
     value: ?[]const u8 = null,
+    /// allowed values, for `invalid_value`
+    possible_values: ?[]const []const u8 = null,
 };

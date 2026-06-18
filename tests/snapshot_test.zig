@@ -25,7 +25,7 @@ test "snapshot: help and arg_required_else_help" {
 }
 
 test "snapshot: add" {
-    try expectRun(&.{ "add", "Cargo.toml", "Cargo.lock" }, 0, "Adding [\"Cargo.toml\", \"Cargo.lock\"]\n");
+    try expectRun(&.{ "add", "Cargo.toml", "Cargo.lock" }, 0, "Adding Cargo.toml, Cargo.lock\n");
 }
 
 test "snapshot: stash help variants" {
@@ -35,13 +35,13 @@ test "snapshot: stash help variants" {
 }
 
 test "snapshot: stash run" {
-    try expectRun(&.{ "stash", "-m", "Prototype" }, 0, "Pushing Some(\"Prototype\")\n");
-    try expectRun(&.{ "stash", "pop" }, 0, "Popping None\n");
-    try expectRun(&.{ "stash", "push", "-m", "Prototype" }, 0, "Pushing Some(\"Prototype\")\n");
+    try expectRun(&.{ "stash", "-m", "Prototype" }, 0, "Pushing Prototype\n");
+    try expectRun(&.{ "stash", "pop" }, 0, "Popping (none)\n");
+    try expectRun(&.{ "stash", "push", "-m", "Prototype" }, 0, "Pushing Prototype\n");
 }
 
 test "snapshot: external subcommand" {
-    try expectRun(&.{ "custom-tool", "arg1", "--foo", "bar" }, 0, "Calling out to \"custom-tool\" with [\"arg1\", \"--foo\", \"bar\"]\n");
+    try expectRun(&.{ "custom-tool", "arg1", "--foo", "bar" }, 0, "Calling out to custom-tool with arg1, --foo, bar\n");
 }
 
 test "snapshot: diff" {

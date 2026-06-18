@@ -68,3 +68,23 @@ pub fn positionalNotationStr(allocator: std.mem.Allocator, a: *const Arg) []cons
     positionalNotation(&b, a);
     return b.items();
 }
+
+/// How an argument is referred to in error messages: `<MODE>` / `[PORT]` for
+/// positionals, `--name <VAL>` / `-n <VAL>` for options/flags.
+pub fn argUsageStr(allocator: std.mem.Allocator, a: *const Arg) []const u8 {
+    if (a.isPositional()) return positionalNotationStr(allocator, a);
+    var b = Buf{ .allocator = allocator };
+    if (a.long_name) |l| {
+        b.add("--");
+        b.add(l);
+    } else if (a.short_char) |c| {
+        b.addByte('-');
+        b.addByte(c);
+    }
+    if (a.takesValue()) {
+        b.add(" <");
+        b.add(a.value_name orelse a.id);
+        b.add(">");
+    }
+    return b.items();
+}

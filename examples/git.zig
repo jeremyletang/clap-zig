@@ -5,6 +5,7 @@
 
 const std = @import("std");
 const clap = @import("clap");
+const harness = @import("harness");
 
 const Command = clap.Command;
 const Arg = clap.Arg;
@@ -57,31 +58,30 @@ pub fn run(a: std.mem.Allocator, argv: []const []const u8, out: *std.ArrayList(u
     const matches = switch (clap.getMatches(a, &cmd, argv)) {
         .matches => |m| m,
         .err => |e| {
-            add(a, out, clap.renderError(a, e));
+            harness.print(a, out, "{s}", .{clap.renderError(a, e)});
             return e.kind.exitCode();
         },
     };
-    const sub = matches.subcommand().?;
-    dispatch(a, out, &cmd, sub);
+    dispatch(a, out, matches.subcommand().?);
     return 0;
 }
 
-fn dispatch(a: std.mem.Allocator, out: *std.ArrayList(u8), root: *const Command, sub: clap.Subcommand) void {
+fn dispatch(a: std.mem.Allocator, out: *std.ArrayList(u8), sub: clap.Subcommand) void {
     const m = sub.matches;
     if (std.mem.eql(u8, sub.name, "clone")) {
-        print(a, out, "Cloning {s}\n", .{m.getOne([]const u8, "REMOTE").?});
+        harness.print(a, out, "Cloning {s}\n", .{m.getOne([]const u8, "REMOTE").?});
     } else if (std.mem.eql(u8, sub.name, "diff")) {
         diff(a, out, m);
     } else if (std.mem.eql(u8, sub.name, "push")) {
-        print(a, out, "Pushing to {s}\n", .{m.getOne([]const u8, "REMOTE").?});
+        harness.print(a, out, "Pushing to {s}\n", .{m.getOne([]const u8, "REMOTE").?});
     } else if (std.mem.eql(u8, sub.name, "add")) {
-        print(a, out, "Adding {s}\n", .{debugList(a, m.getMany([]const u8, "PATH"))});
+        harness.print(a, out, "Adding {s}\n", .{harness.list(a, m.getMany([]const u8, "PATH"))});
     } else if (std.mem.eql(u8, sub.name, "stash")) {
         stash(a, out, m);
     } else {
-        external(a, out, sub);
+        const args = sub.matches.getMany([]const u8, clap.external_id);
+        harness.print(a, out, "Calling out to {s} with {s}\n", .{ sub.name, harness.list(a, args) });
     }
-    _ = root;
 }
 
 fn diff(a: std.mem.Allocator, out: *std.ArrayList(u8), m: *const ArgMatches) void {
@@ -97,7 +97,7 @@ fn diff(a: std.mem.Allocator, out: *std.ArrayList(u8), m: *const ArgMatches) voi
             base = null;
         }
     }
-    print(a, out, "Diffing {s}..{s} {s} (color={s})\n", .{
+    harness.print(a, out, "Diffing {s}..{s} {s} (color={s})\n", .{
         base orelse "stage",
         head orelse "worktree",
         path orelse "",
@@ -110,64 +110,14 @@ fn stash(a: std.mem.Allocator, out: *std.ArrayList(u8), m: *const ArgMatches) vo
     const name = if (m.subcommand()) |s| s.name else "push";
     const sm = if (m.subcommand()) |s| s.matches else m;
     if (std.mem.eql(u8, name, "apply")) {
-        print(a, out, "Applying {s}\n", .{optStr(a, sm.getOne([]const u8, "STASH"))});
+        harness.print(a, out, "Applying {s}\n", .{harness.optOr(sm.getOne([]const u8, "STASH"), "(none)")});
     } else if (std.mem.eql(u8, name, "pop")) {
-        print(a, out, "Popping {s}\n", .{optStr(a, sm.getOne([]const u8, "STASH"))});
+        harness.print(a, out, "Popping {s}\n", .{harness.optOr(sm.getOne([]const u8, "STASH"), "(none)")});
     } else {
-        print(a, out, "Pushing {s}\n", .{optStr(a, sm.getOne([]const u8, "message"))});
+        harness.print(a, out, "Pushing {s}\n", .{harness.optOr(sm.getOne([]const u8, "message"), "(none)")});
     }
-}
-
-fn external(a: std.mem.Allocator, out: *std.ArrayList(u8), sub: clap.Subcommand) void {
-    const args = sub.matches.getMany([]const u8, clap.external_id);
-    print(a, out, "Calling out to {s} with {s}\n", .{ debugStr(a, sub.name), debugList(a, args) });
-}
-
-// ----- output helpers -----
-
-fn add(a: std.mem.Allocator, out: *std.ArrayList(u8), s: []const u8) void {
-    out.appendSlice(a, s) catch @panic("OOM");
-}
-
-fn print(a: std.mem.Allocator, out: *std.ArrayList(u8), comptime fmt: []const u8, args: anytype) void {
-    add(a, out, std.fmt.allocPrint(a, fmt, args) catch @panic("OOM"));
-}
-
-// ----- Rust Debug-style formatting (to match git.md exactly) -----
-
-fn debugStr(a: std.mem.Allocator, s: []const u8) []const u8 {
-    return std.fmt.allocPrint(a, "\"{s}\"", .{s}) catch @panic("OOM");
-}
-
-fn optStr(a: std.mem.Allocator, v: ?[]const u8) []const u8 {
-    return if (v) |s| std.fmt.allocPrint(a, "Some({s})", .{debugStr(a, s)}) catch @panic("OOM") else "None";
-}
-
-fn debugList(a: std.mem.Allocator, vals: ?[]const []const u8) []const u8 {
-    var b: std.ArrayList(u8) = .empty;
-    b.appendSlice(a, "[") catch @panic("OOM");
-    if (vals) |list| {
-        for (list, 0..) |v, i| {
-            if (i != 0) b.appendSlice(a, ", ") catch @panic("OOM");
-            b.appendSlice(a, debugStr(a, v)) catch @panic("OOM");
-        }
-    }
-    b.appendSlice(a, "]") catch @panic("OOM");
-    return b.items;
 }
 
 pub fn main(init: std.process.Init) !void {
-    const a = init.arena.allocator();
-
-    // toSlice yields []const [:0]const u8; copy to []const u8 (each element coerces)
-    const raw = try init.minimal.args.toSlice(a);
-    var argv: std.ArrayList([]const u8) = .empty;
-    for (raw) |arg0| try argv.append(a, arg0);
-
-    var out: std.ArrayList(u8) = .empty;
-    const code = run(a, argv.items[1..], &out);
-
-    const file = if (code == 0) std.Io.File.stdout() else std.Io.File.stderr();
-    try file.writeStreamingAll(init.io, out.items);
-    std.process.exit(code);
+    try harness.execMain(init, run);
 }

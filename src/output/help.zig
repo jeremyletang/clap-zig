@@ -117,7 +117,7 @@ fn collectPositionals(allocator: std.mem.Allocator, cmd: *const Command, entries
     while (cmd.getPositional(i)) |a| : (i += 1) {
         entries.append(allocator, .{
             .term = layout.positionalNotationStr(allocator, a),
-            .help = a.help_str orelse "",
+            .help = argHelp(allocator, a),
         }) catch oom();
     }
 }
@@ -137,7 +137,7 @@ fn collectOptions(allocator: std.mem.Allocator, cmd: *const Command, entries: *s
         if (a.isPositional()) continue;
         entries.append(allocator, .{
             .term = optionTerm(allocator, a),
-            .help = optionHelp(allocator, a),
+            .help = argHelp(allocator, a),
         }) catch oom();
     }
     if (!cmd.disable_help_flag) {
@@ -164,6 +164,7 @@ fn optionTerm(allocator: std.mem.Allocator, a: *const Arg) []const u8 {
         b.add(l);
     }
     appendValueNotation(&b, a);
+    if (a.action_val == .count) b.add("...");
     return b.items();
 }
 
@@ -181,7 +182,7 @@ fn appendValueNotation(b: *Buf, a: *const Arg) void {
     }
 }
 
-fn optionHelp(allocator: std.mem.Allocator, a: *const Arg) []const u8 {
+fn argHelp(allocator: std.mem.Allocator, a: *const Arg) []const u8 {
     var b = Buf{ .allocator = allocator };
     if (a.help_str) |h| b.add(h);
     if (a.default_value) |d| {

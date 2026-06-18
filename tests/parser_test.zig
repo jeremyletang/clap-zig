@@ -101,7 +101,7 @@ test "validate: invalid possible value" {
     const e = f.runValidated(&.{ "diff", "--color=bad" }).err;
     try testing.expectEqual(ErrorKind.invalid_value, e.kind);
     try testing.expectEqualStrings("bad", e.value.?);
-    try testing.expectEqualStrings("color", e.arg.?);
+    try testing.expectEqualStrings("--color <WHEN>", e.arg.?);
 }
 
 test "validate: happy paths return matches" {

@@ -124,7 +124,7 @@ pub const Arg = struct {
     }
 
     pub fn isMultiple(self: Arg) bool {
-        return self.action_val == .append or self.effectiveNumArgs().isMultiple();
+        return self.action_val == .append or self.action_val == .count or self.effectiveNumArgs().isMultiple();
     }
 
     // ----- usage-string constructor (mirrors clap's `arg!`) -----

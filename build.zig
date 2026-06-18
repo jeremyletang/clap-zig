@@ -36,6 +36,7 @@ pub fn build(b: *std.Build) void {
     const default_values_mod = addExample(b, clap, harness, "03_05_default_values", "default_values", "examples/03_05_default_values.zig");
     const required_mod = addExample(b, clap, harness, "03_06_required", "required", "examples/03_06_required.zig");
     const possible_mod = addExample(b, clap, harness, "04_01_possible", "possible", "examples/04_01_possible.zig");
+    const enum_mod = addExample(b, clap, harness, "04_01_enum", "enum", "examples/04_01_enum.zig");
     const parse_mod = addExample(b, clap, harness, "04_02_parse", "parse", "examples/04_02_parse.zig");
     const validate_mod = addExample(b, clap, harness, "04_02_validate", "validate", "examples/04_02_validate.zig");
     const relations_mod = addExample(b, clap, harness, "04_03_relations", "relations", "examples/04_03_relations.zig");
@@ -55,6 +56,7 @@ pub fn build(b: *std.Build) void {
     tests_mod.addImport("default_values", default_values_mod);
     tests_mod.addImport("required", required_mod);
     tests_mod.addImport("possible", possible_mod);
+    tests_mod.addImport("enum_ex", enum_mod);
     tests_mod.addImport("parse", parse_mod);
     tests_mod.addImport("validate", validate_mod);
     tests_mod.addImport("relations", relations_mod);

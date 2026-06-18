@@ -48,4 +48,6 @@ pub const Error = struct {
     /// ids (present + missing-required) for contextual "smart" usage; when null,
     /// the renderer uses the help-style usage (with `[OPTIONS]`)
     used_ids: ?[]const []const u8 = null,
+    /// for `display_help`: whether `--help` (long) vs `-h` (short) was requested
+    help_long: bool = false,
 };

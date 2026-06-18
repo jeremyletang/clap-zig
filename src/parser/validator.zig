@@ -30,7 +30,7 @@ fn checkPossibleValues(allocator: std.mem.Allocator, cmd: *const Command, m: *co
     for (cmd.arg_list.items) |*a| {
         const vals = m.getRaw(a.id) orelse continue;
         for (vals) |v| {
-            if (a.possible_values) |allowed| {
+            if (a.possibleValueNames(allocator)) |allowed| {
                 if (!contains(allowed, v)) return invalidValue(allocator, cmd, a, v, .{ .possible_values = allowed });
             }
             if (a.value_parser_fn) |parse| {

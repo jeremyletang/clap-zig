@@ -2,6 +2,9 @@ const std = @import("std");
 const action = @import("action.zig");
 const range = @import("range.zig");
 const value_parser = @import("value_parser.zig");
+const possible_value = @import("possible_value.zig");
+
+const PossibleValue = possible_value.PossibleValue;
 
 // aliased because the `action` builder method below shadows the import inside the struct
 const ArgAction = action.ArgAction;
@@ -27,6 +30,7 @@ pub const Arg = struct {
     default_missing_value: ?[]const u8 = null,
     possible_values: ?[]const []const u8 = null,
     value_parser_fn: ?value_parser.ParserFn = null,
+    value_help: ?[]const PossibleValue = null,
     group_id: ?[]const u8 = null,
     requires_id: ?[]const u8 = null,
 
@@ -119,6 +123,24 @@ pub const Arg = struct {
         var a = self;
         a.value_parser_fn = f;
         return a;
+    }
+
+    /// Enumerated values with per-value help (clap's `ValueEnum` / `PossibleValue`s).
+    /// The help text is shown in long help (`--help`).
+    pub fn possibleValues(self: Arg, values: []const PossibleValue) Arg {
+        var a = self;
+        a.value_help = values;
+        return a;
+    }
+
+    /// The accepted value names (from `possibleValues` or `valueParser`), or null.
+    pub fn possibleValueNames(self: Arg, allocator: std.mem.Allocator) ?[]const []const u8 {
+        if (self.value_help) |vh| {
+            var list: std.ArrayListUnmanaged([]const u8) = .empty;
+            for (vh) |v| list.append(allocator, v.name) catch @panic("clap: OOM");
+            return list.items;
+        }
+        return self.possible_values;
     }
 
     /// Add this argument to a named `ArgGroup`.

@@ -21,7 +21,7 @@ const Buf = layout.Buf;
 pub fn render(allocator: std.mem.Allocator, e: errors.Error) []const u8 {
     switch (e.kind) {
         .display_help, .display_help_on_missing_argument_or_subcommand => {
-            return help.render(allocator, e.cmd);
+            return help.render(allocator, e.cmd, e.help_long);
         },
         .display_version => {
             return std.fmt.allocPrint(allocator, "{s} {s}\n", .{

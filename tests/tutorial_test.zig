@@ -7,6 +7,7 @@ const option = @import("option");
 const default_values = @import("default_values");
 const required = @import("required");
 const possible = @import("possible");
+const enum_ex = @import("enum_ex");
 const parse = @import("parse");
 const validate = @import("validate");
 const relations = @import("relations");
@@ -148,6 +149,52 @@ test "04_03_relations" {
     try expectRun(relations.run, &.{ "--major", "-c", "config.toml", "--spec-in", "input.txt" }, 0,
         "Version: 2.2.3\n" ++
         "Doing work using input input.txt and config config.toml\n");
+}
+
+test "04_01_enum: run and invalid value" {
+    try expectRun(enum_ex.run, &.{"fast"}, 0, "Hare\n");
+    try expectRun(enum_ex.run, &.{"slow"}, 0, "Tortoise\n");
+    try expectRun(enum_ex.run, &.{"medium"}, 2,
+        "error: invalid value 'medium' for '<MODE>'\n" ++
+        "  [possible values: fast, slow]\n" ++
+        "\n" ++
+        "For more information, try '--help'.\n");
+}
+
+test "04_01_enum: short help (-h)" {
+    try expectRun(enum_ex.run, &.{"-h"}, 0,
+        "A simple to use, efficient, and full-featured Command Line Argument Parser\n" ++
+        "\n" ++
+        "Usage: 04_01_enum <MODE>\n" ++
+        "\n" ++
+        "Arguments:\n" ++
+        "  <MODE>  What mode to run the program in [possible values: fast, slow]\n" ++
+        "\n" ++
+        "Options:\n" ++
+        "  -h, --help     Print help (see more with '--help')\n" ++
+        "  -V, --version  Print version\n");
+}
+
+test "04_01_enum: long help (--help)" {
+    try expectRun(enum_ex.run, &.{"--help"}, 0,
+        "A simple to use, efficient, and full-featured Command Line Argument Parser\n" ++
+        "\n" ++
+        "Usage: 04_01_enum <MODE>\n" ++
+        "\n" ++
+        "Arguments:\n" ++
+        "  <MODE>\n" ++
+        "          What mode to run the program in\n" ++
+        "\n" ++
+        "          Possible values:\n" ++
+        "          - fast: Run swiftly\n" ++
+        "          - slow: Crawl slowly but steadily\n" ++
+        "\n" ++
+        "Options:\n" ++
+        "  -h, --help\n" ++
+        "          Print help (see a summary with '-h')\n" ++
+        "\n" ++
+        "  -V, --version\n" ++
+        "          Print version\n");
 }
 
 test "04_02_parse" {

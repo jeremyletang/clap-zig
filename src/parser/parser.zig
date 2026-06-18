@@ -33,7 +33,8 @@ const ParseState = union(enum) {
 const FlagResult = union(enum) {
     values_done,
     opt: []const u8,
-    help,
+    /// help requested; payload is whether long (`--help`) vs short (`-h`)
+    help: bool,
     version,
     err: Error,
 };
@@ -98,7 +99,7 @@ const Parser = struct {
                 if (self.state == .values_done) {
                     switch (self.checkSubcommand(token)) {
                         .none => {},
-                        .help => |target| return helpOutcome(target),
+                        .help => |target| return helpOutcome(target, true),
                         .matched => |name| {
                             subcmd_name = name;
                             break;
@@ -165,7 +166,7 @@ const Parser = struct {
                 self.state = .{ .opt = id };
                 return .consumed;
             },
-            .help => return .{ .ret = helpOutcome(self.cmd) },
+            .help => |long| return .{ .ret = helpOutcome(self.cmd, long) },
             .version => return .{ .ret = versionOutcome(self.cmd) },
             .err => |e| return .{ .ret = .{ .err = e } },
         }
@@ -229,7 +230,7 @@ const Parser = struct {
         if (!self.cmd.disable_help_flag and std.mem.eql(u8, l.name, "help") and
             self.cmd.findArgByLong("help") == null)
         {
-            return .help;
+            return .{ .help = true };
         }
         if (self.cmd.hasVersionFlag() and std.mem.eql(u8, l.name, "version") and
             self.cmd.findArgByLong("version") == null)
@@ -256,7 +257,7 @@ const Parser = struct {
             const c = rest[0];
             rest = rest[1..];
             if (!self.cmd.disable_help_flag and c == 'h' and self.cmd.findArgByShort('h') == null) {
-                return .help;
+                return .{ .help = false };
             }
             if (self.cmd.hasVersionFlag() and c == 'V' and self.cmd.findArgByShort('V') == null) {
                 return .version;
@@ -370,8 +371,8 @@ const Parser = struct {
     }
 };
 
-fn helpOutcome(cmd: *const Command) Outcome {
-    return .{ .err = .{ .kind = .display_help, .cmd = cmd } };
+fn helpOutcome(cmd: *const Command, long: bool) Outcome {
+    return .{ .err = .{ .kind = .display_help, .cmd = cmd, .help_long = long } };
 }
 
 fn versionOutcome(cmd: *const Command) Outcome {

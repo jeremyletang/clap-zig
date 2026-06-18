@@ -20,6 +20,7 @@ pub const ParserFn = value_parser.ParserFn;
 pub const rangedInt = value_parser.rangedInt;
 pub const Command = command.Command;
 pub const ArgGroup = arg_group.ArgGroup;
+pub const PossibleValue = @import("builder/possible_value.zig").PossibleValue;
 pub const ArgMatches = matcher.ArgMatches;
 pub const Subcommand = matcher.Subcommand;
 pub const ValueSource = matcher.ValueSource;
@@ -29,7 +30,10 @@ pub const Outcome = parser.Outcome;
 pub const parse = parser.parse;
 pub const getMatches = parser.getMatches;
 pub const external_id = parser.external_id;
-pub const renderHelp = help.render;
+/// Render a command's compact (`-h`) help text.
+pub fn renderHelp(allocator: std.mem.Allocator, cmd: *const Command) []const u8 {
+    return help.render(allocator, cmd, false);
+}
 pub const renderUsage = usage.render;
 pub const renderError = @import("output/error.zig").render;
 

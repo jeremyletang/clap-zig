@@ -1,6 +1,7 @@
 const std = @import("std");
 const action = @import("action.zig");
 const range = @import("range.zig");
+const value_parser = @import("value_parser.zig");
 
 // aliased because the `action` builder method below shadows the import inside the struct
 const ArgAction = action.ArgAction;
@@ -25,6 +26,7 @@ pub const Arg = struct {
     default_value: ?[]const u8 = null,
     default_missing_value: ?[]const u8 = null,
     possible_values: ?[]const []const u8 = null,
+    value_parser_fn: ?value_parser.ParserFn = null,
 
     pub fn new(id: []const u8) Arg {
         return .{ .id = id };
@@ -106,6 +108,14 @@ pub const Arg = struct {
     pub fn valueParser(self: Arg, values: []const []const u8) Arg {
         var a = self;
         a.possible_values = values;
+        return a;
+    }
+
+    /// Validate values with a function (clap's `value_parser!(T)` / custom
+    /// parsers), e.g. `clap.rangedInt(u16, 1, 65535)` or a user fn.
+    pub fn valueParserFn(self: Arg, f: value_parser.ParserFn) Arg {
+        var a = self;
+        a.value_parser_fn = f;
         return a;
     }
 

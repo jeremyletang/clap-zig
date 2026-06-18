@@ -43,4 +43,6 @@ pub const Error = struct {
     value: ?[]const u8 = null,
     /// allowed values, for `invalid_value`
     possible_values: ?[]const []const u8 = null,
+    /// failure reason shown after the colon, for `invalid_value` from a value parser
+    reason: ?[]const u8 = null,
 };

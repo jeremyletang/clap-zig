@@ -36,6 +36,8 @@ pub fn build(b: *std.Build) void {
     const default_values_mod = addExample(b, clap, harness, "03_05_default_values", "default_values", "examples/03_05_default_values.zig");
     const required_mod = addExample(b, clap, harness, "03_06_required", "required", "examples/03_06_required.zig");
     const possible_mod = addExample(b, clap, harness, "04_01_possible", "possible", "examples/04_01_possible.zig");
+    const parse_mod = addExample(b, clap, harness, "04_02_parse", "parse", "examples/04_02_parse.zig");
+    const validate_mod = addExample(b, clap, harness, "04_02_validate", "validate", "examples/04_02_validate.zig");
 
     // integration tests (tests/) consume the public `clap` module + the example modules
     const tests_mod = b.createModule(.{
@@ -52,6 +54,8 @@ pub fn build(b: *std.Build) void {
     tests_mod.addImport("default_values", default_values_mod);
     tests_mod.addImport("required", required_mod);
     tests_mod.addImport("possible", possible_mod);
+    tests_mod.addImport("parse", parse_mod);
+    tests_mod.addImport("validate", validate_mod);
     const integration_tests = b.addTest(.{
         .root_module = tests_mod,
         .filters = if (test_filter) |f| &.{f} else &.{},

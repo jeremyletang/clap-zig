@@ -7,6 +7,8 @@ const option = @import("option");
 const default_values = @import("default_values");
 const required = @import("required");
 const possible = @import("possible");
+const parse = @import("parse");
+const validate = @import("validate");
 
 const RunFn = *const fn (std.mem.Allocator, []const []const u8, *std.ArrayList(u8)) u8;
 
@@ -97,6 +99,30 @@ test "03_06_required" {
         "  <name>\n" ++
         "\n" ++
         "Usage: 03_06_required <name>\n" ++
+        "\n" ++
+        "For more information, try '--help'.\n");
+}
+
+test "04_02_parse" {
+    try expectRun(parse.run, &.{"22"}, 0, "PORT = 22\n");
+    try expectRun(parse.run, &.{"foobar"}, 2,
+        "error: invalid value 'foobar' for '<PORT>': invalid digit found in string\n" ++
+        "\n" ++
+        "For more information, try '--help'.\n");
+    try expectRun(parse.run, &.{"0"}, 2,
+        "error: invalid value '0' for '<PORT>': 0 is not in 1..=65535\n" ++
+        "\n" ++
+        "For more information, try '--help'.\n");
+}
+
+test "04_02_validate" {
+    try expectRun(validate.run, &.{"22"}, 0, "PORT = 22\n");
+    try expectRun(validate.run, &.{"foobar"}, 2,
+        "error: invalid value 'foobar' for '<PORT>': `foobar` isn't a port number\n" ++
+        "\n" ++
+        "For more information, try '--help'.\n");
+    try expectRun(validate.run, &.{"0"}, 2,
+        "error: invalid value '0' for '<PORT>': port not in range 1-65535\n" ++
         "\n" ++
         "For more information, try '--help'.\n");
 }

@@ -1,8 +1,33 @@
 const std = @import("std");
 
+/// Outcome of validating one raw value with an `Arg`'s value parser: either it
+/// is acceptable, or a reason string (shown after the colon in clap's
+/// "invalid value '…' for '…': <reason>").
+pub const ParseResult = union(enum) {
+    ok,
+    invalid: []const u8,
+};
+
+/// A value parser: validates a raw value, producing a reason on failure.
+pub const ParserFn = *const fn (std.mem.Allocator, []const u8) ParseResult;
+
+/// Build a parser for an integer type constrained to `[min, max]`, with
+/// clap-compatible error messages.
+pub fn rangedInt(comptime T: type, comptime min: T, comptime max: T) ParserFn {
+    return &struct {
+        fn parseRanged(a: std.mem.Allocator, s: []const u8) ParseResult {
+            const n = std.fmt.parseInt(T, s, 10) catch
+                return .{ .invalid = "invalid digit found in string" };
+            if (n < min or n > max) {
+                return .{ .invalid = std.fmt.allocPrint(a, "{d} is not in {d}..={d}", .{ n, min, max }) catch @panic("clap: OOM") };
+            }
+            return .ok;
+        }
+    }.parseRanged;
+}
+
 /// Typed parsing of a raw string value into `T`, used by `ArgMatches.getOne` /
-/// `getMany`. Milestone 1 covers strings, ints, bools, and enums; the richer
-/// parser set (ranged ints, custom parsers) lands in a later milestone.
+/// `getMany`. Covers strings, ints, floats, bools, and enums.
 pub const ParseError = error{InvalidValue};
 
 pub fn parse(comptime T: type, s: []const u8) ParseError!T {

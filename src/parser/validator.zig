@@ -3,8 +3,10 @@ const command = @import("../builder/command.zig");
 const matcher = @import("matcher.zig");
 const errors = @import("../error.zig");
 const layout = @import("../output/layout.zig");
+const arg = @import("../builder/arg.zig");
 
 const Command = command.Command;
+const Arg = arg.Arg;
 const ArgMatches = matcher.ArgMatches;
 const Error = errors.Error;
 
@@ -25,20 +27,37 @@ pub fn validate(allocator: std.mem.Allocator, cmd: *const Command, m: *const Arg
 fn checkPossibleValues(allocator: std.mem.Allocator, cmd: *const Command, m: *const ArgMatches) ?Error {
     for (cmd.arg_list.items) |*a| {
         const vals = m.getRaw(a.id) orelse continue;
-        const allowed = a.possible_values orelse continue;
         for (vals) |v| {
-            if (!contains(allowed, v)) {
-                return .{
-                    .kind = .invalid_value,
-                    .cmd = cmd,
-                    .arg = layout.argUsageStr(allocator, a),
-                    .value = v,
-                    .possible_values = allowed,
-                };
+            if (a.possible_values) |allowed| {
+                if (!contains(allowed, v)) {
+                    return invalidValue(allocator, cmd, a, v, .{ .possible_values = allowed });
+                }
+            }
+            if (a.value_parser_fn) |parse| {
+                switch (parse(allocator, v)) {
+                    .ok => {},
+                    .invalid => |reason| return invalidValue(allocator, cmd, a, v, .{ .reason = reason }),
+                }
             }
         }
     }
     return null;
+}
+
+const InvalidExtra = struct {
+    possible_values: ?[]const []const u8 = null,
+    reason: ?[]const u8 = null,
+};
+
+fn invalidValue(allocator: std.mem.Allocator, cmd: *const Command, a: *const Arg, value: []const u8, extra: InvalidExtra) Error {
+    return .{
+        .kind = .invalid_value,
+        .cmd = cmd,
+        .arg = layout.argUsageStr(allocator, a),
+        .value = value,
+        .possible_values = extra.possible_values,
+        .reason = extra.reason,
+    };
 }
 
 fn checkRequired(allocator: std.mem.Allocator, cmd: *const Command, m: *const ArgMatches) ?Error {

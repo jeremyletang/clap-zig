@@ -54,6 +54,7 @@ fn appendMessage(b: *Buf, e: errors.Error) void {
     switch (e.kind) {
         .invalid_value => {
             b.print("invalid value '{s}' for '{s}'", .{ e.value orelse "", arg });
+            if (e.reason) |r| b.print(": {s}", .{r});
             if (e.possible_values) |pv| {
                 b.add("\n  [possible values: ");
                 for (pv, 0..) |v, i| {

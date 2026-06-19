@@ -19,6 +19,8 @@ pub const Command = struct {
     bin_name: ?[]const u8 = null,
     about_text: ?[]const u8 = null,
     version_str: ?[]const u8 = null,
+    author_text: ?[]const u8 = null,
+    help_template_text: ?[]const u8 = null,
     arg_list: std.ArrayListUnmanaged(Arg) = .empty,
     subcommands: std.ArrayListUnmanaged(Command) = .empty,
     groups: std.ArrayListUnmanaged(ArgGroup) = .empty,
@@ -55,6 +57,20 @@ pub const Command = struct {
     pub fn version(self: Command, v: []const u8) Command {
         var c = self;
         c.version_str = v;
+        return c;
+    }
+
+    /// Stored for parity; not yet shown in help output.
+    pub fn author(self: Command, a: []const u8) Command {
+        var c = self;
+        c.author_text = a;
+        return c;
+    }
+
+    /// Stored for parity; clap-zig renders its own help layout (templates pending).
+    pub fn helpTemplate(self: Command, t: []const u8) Command {
+        var c = self;
+        c.help_template_text = t;
         return c;
     }
 
@@ -139,15 +155,27 @@ pub const Command = struct {
     /// a subcommand's `bin_name` becomes "<parent path> <name>". Call once on the
     /// root before parsing/help so usage lines read e.g. "git stash push".
     pub fn buildTree(self: *Command) void {
-        self.propagate(self.bin_name orelse self.name);
+        self.propagate(self.bin_name orelse self.name, &.{});
     }
 
-    fn propagate(self: *Command, path: []const u8) void {
+    /// Propagate bin-name paths and inherited global args down the tree: a
+    /// subcommand inherits every ancestor's `global` arg so its parser
+    /// recognizes them (clap's global propagation).
+    fn propagate(self: *Command, path: []const u8, inherited_globals: []const Arg) void {
         self.bin_name = path;
+        for (inherited_globals) |g| {
+            if (self.findArgById(g.id) == null) {
+                self.arg_list.append(self.allocator, g) catch @panic("clap: OOM building command");
+            }
+        }
+        var globals: std.ArrayListUnmanaged(Arg) = .empty;
+        for (self.arg_list.items) |*a| {
+            if (a.is_global) globals.append(self.allocator, a.*) catch @panic("clap: OOM building command");
+        }
         for (self.subcommands.items) |*sc| {
             const child = std.fmt.allocPrint(self.allocator, "{s} {s}", .{ path, sc.name }) catch
                 @panic("clap: OOM building command");
-            sc.propagate(child);
+            sc.propagate(child, globals.items);
         }
     }
 

@@ -57,7 +57,35 @@ pub fn parse(allocator: std.mem.Allocator, cmd: *const Command, argv: []const []
         .positional_count = cmd.countPositionals(),
         .contains_last = hasLast(cmd),
     };
-    return p.loop();
+    const outcome = p.loop();
+    if (outcome == .matches) propagateGlobals(allocator, cmd, outcome.matches);
+    return outcome;
+}
+
+/// Unify `global` args across the subcommand match chain: a global matched at
+/// any level is copied into every level so it reads the same everywhere.
+fn propagateGlobals(allocator: std.mem.Allocator, cmd: *const Command, root: *ArgMatches) void {
+    var chain: std.ArrayListUnmanaged(*ArgMatches) = .empty;
+    var node: ?*ArgMatches = root;
+    while (node) |n| {
+        chain.append(allocator, n) catch @panic("clap: OOM matching");
+        node = if (n.sub) |s| s.matches else null;
+    }
+    if (chain.items.len < 2) return;
+    for (cmd.arg_list.items) |*a| {
+        if (!a.is_global) continue;
+        var winner: ?*ArgMatches = null;
+        for (chain.items) |n| {
+            if (n.isPresent(a.id)) {
+                winner = n;
+                break;
+            }
+        }
+        const w = winner orelse continue;
+        for (chain.items) |n| {
+            if (n != w) n.copyMatched(a.id, w);
+        }
+    }
 }
 
 /// Parse and then validate (clap's `try_get_matches_from`). Returns matches,

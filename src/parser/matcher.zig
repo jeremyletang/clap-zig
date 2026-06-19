@@ -96,6 +96,19 @@ pub const ArgMatches = struct {
         self.sub = .{ .name = name, .matches = matches };
     }
 
+    /// Copy a global arg's match from `from` into self (overwriting), so a global
+    /// arg matched at one level is visible at another.
+    pub fn copyMatched(self: *ArgMatches, id: []const u8, from: *const ArgMatches) void {
+        const src = from.map.getPtr(id) orelse return;
+        const m = self.getOrPut(id);
+        m.values.clearRetainingCapacity();
+        m.indices.clearRetainingCapacity();
+        m.values.appendSlice(self.allocator, src.values.items) catch @panic("clap: OOM matching");
+        m.indices.appendSlice(self.allocator, src.indices.items) catch @panic("clap: OOM matching");
+        m.source = src.source;
+        m.occurrences = src.occurrences;
+    }
+
     // ----- retrieval -----
 
     /// Whether the argument was supplied on the command line (defaults don't count).

@@ -31,8 +31,11 @@ pub const Arg = struct {
     possible_values: ?[]const []const u8 = null,
     value_parser_fn: ?value_parser.ParserFn = null,
     value_help: ?[]const PossibleValue = null,
+    value_names: ?[]const []const u8 = null,
     group_id: ?[]const u8 = null,
     requires_id: ?[]const u8 = null,
+    conflicts_id: ?[]const u8 = null,
+    is_global: bool = false,
 
     pub fn new(id: []const u8) Arg {
         return .{ .id = id };
@@ -154,6 +157,31 @@ pub const Arg = struct {
     pub fn requires(self: Arg, id: []const u8) Arg {
         var a = self;
         a.requires_id = id;
+        return a;
+    }
+
+    /// This argument cannot be used together with the named one. (Stored;
+    /// mutual-exclusion validation is part of the wider arg-relations work.)
+    pub fn conflictsWith(self: Arg, id: []const u8) Arg {
+        var a = self;
+        a.conflicts_id = id;
+        return a;
+    }
+
+    /// Available to this command and all its subcommands; a match at any level
+    /// is visible from every level (clap's `global`).
+    pub fn global(self: Arg, yes: bool) Arg {
+        var a = self;
+        a.is_global = yes;
+        return a;
+    }
+
+    /// Names for an option's values, shown in help; also fixes the value count
+    /// to the number of names when `num_args` is unset (clap's `value_names`).
+    pub fn valueNames(self: Arg, names: []const []const u8) Arg {
+        var a = self;
+        a.value_names = names;
+        if (a.num_args == null) a.num_args = range.ValueRange.between(names.len, names.len);
         return a;
     }
 

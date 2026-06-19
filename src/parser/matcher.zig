@@ -5,9 +5,11 @@ const value_parser = @import("../builder/value_parser.zig");
 /// Port of https://github.com/clap-rs/clap/blob/master/clap_builder/src/parser/matches/value_source.rs
 pub const ValueSource = enum { default_value, command_line };
 
-/// Accumulated values for a single argument id.
+/// Accumulated values for a single argument id, plus the parse-index of each
+/// (clap's `cur_idx`: flag-char and value slots counted 1-based, binary = 0).
 pub const MatchedArg = struct {
     values: std.ArrayListUnmanaged([]const u8) = .empty,
+    indices: std.ArrayListUnmanaged(usize) = .empty,
     source: ValueSource = .command_line,
     occurrences: usize = 0,
 };
@@ -34,7 +36,10 @@ pub const ArgMatches = struct {
 
     pub fn deinit(self: *ArgMatches) void {
         var it = self.map.valueIterator();
-        while (it.next()) |m| m.values.deinit(self.allocator);
+        while (it.next()) |m| {
+            m.values.deinit(self.allocator);
+            m.indices.deinit(self.allocator);
+        }
         self.map.deinit(self.allocator);
         if (self.sub) |s| s.matches.deinit();
     }
@@ -54,17 +59,28 @@ pub const ArgMatches = struct {
         if (source == .command_line) m.source = .command_line;
     }
 
-    pub fn pushValue(self: *ArgMatches, id: []const u8, val: []const u8) void {
+    pub fn pushValue(self: *ArgMatches, id: []const u8, val: []const u8, index: usize) void {
         const m = self.getOrPut(id);
         m.values.append(self.allocator, val) catch @panic("clap: OOM matching");
+        m.indices.append(self.allocator, index) catch @panic("clap: OOM matching");
     }
 
     /// Seed a default value (only if the arg is otherwise absent).
-    pub fn setDefault(self: *ArgMatches, id: []const u8, val: []const u8) void {
+    pub fn setDefault(self: *ArgMatches, id: []const u8, val: []const u8, index: usize) void {
         if (self.map.contains(id)) return;
         const m = self.getOrPut(id);
         m.source = .default_value;
         m.values.append(self.allocator, val) catch @panic("clap: OOM matching");
+        m.indices.append(self.allocator, index) catch @panic("clap: OOM matching");
+    }
+
+    /// Clear a prior occurrence so it can be re-recorded (clap's `args_override_self`).
+    pub fn reset(self: *ArgMatches, id: []const u8) void {
+        if (self.map.getPtr(id)) |m| {
+            m.values.clearRetainingCapacity();
+            m.indices.clearRetainingCapacity();
+            m.occurrences = 0;
+        }
     }
 
     pub fn setSubcommand(self: *ArgMatches, name: []const u8, matches: *ArgMatches) void {
@@ -102,6 +118,20 @@ pub const ArgMatches = struct {
 
     pub fn getFlag(self: *const ArgMatches, id: []const u8) bool {
         return self.getOne(bool, id) orelse false;
+    }
+
+    /// The parse-index of the (last) value of `id`, or null if absent.
+    pub fn indexOf(self: *const ArgMatches, id: []const u8) ?usize {
+        const m = self.map.getPtr(id) orelse return null;
+        if (m.indices.items.len == 0) return null;
+        return m.indices.items[m.indices.items.len - 1];
+    }
+
+    /// All parse-indices of `id`'s values, or null if absent.
+    pub fn indicesOf(self: *const ArgMatches, id: []const u8) ?[]const usize {
+        const m = self.map.getPtr(id) orelse return null;
+        if (m.indices.items.len == 0) return null;
+        return m.indices.items;
     }
 
     /// Number of occurrences of a `Count`-action argument (0 if absent).
@@ -147,16 +177,18 @@ test "matches: store and retrieve values" {
     const m = try ArgMatches.create(arena.allocator());
 
     m.startOccurrence("color", .command_line);
-    m.pushValue("color", "never");
+    m.pushValue("color", "never", 2);
     try testing.expectEqualStrings("never", m.getOne([]const u8, "color").?);
     try testing.expect(m.isPresent("color"));
     try testing.expect(m.getOne([]const u8, "missing") == null);
+    try testing.expectEqual(@as(?usize, 2), m.indexOf("color"));
 
-    m.pushValue("PATH", "a.txt");
-    m.pushValue("PATH", "b.txt");
+    m.pushValue("PATH", "a.txt", 3);
+    m.pushValue("PATH", "b.txt", 4);
     const paths = m.getMany([]const u8, "PATH").?;
     try testing.expectEqual(@as(usize, 2), paths.len);
     try testing.expectEqualStrings("b.txt", paths[1]);
+    try testing.expectEqualSlices(usize, &.{ 3, 4 }, m.indicesOf("PATH").?);
 }
 
 test "matches: defaults do not count as present" {
@@ -164,7 +196,7 @@ test "matches: defaults do not count as present" {
     defer arena.deinit();
     const m = try ArgMatches.create(arena.allocator());
 
-    m.setDefault("color", "auto");
+    m.setDefault("color", "auto", 1);
     try testing.expectEqualStrings("auto", m.getOne([]const u8, "color").?);
     try testing.expect(!m.isPresent("color"));
     try testing.expect(m.contains("color"));

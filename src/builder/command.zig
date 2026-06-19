@@ -31,6 +31,7 @@ pub const Command = struct {
     disable_help_flag: bool = false,
     disable_help_subcommand: bool = false,
     disable_version_flag: bool = false,
+    args_override_self: bool = false,
 
     pub fn init(allocator: std.mem.Allocator, name: []const u8) Command {
         return .{ .allocator = allocator, .name = name };
@@ -123,6 +124,14 @@ pub const Command = struct {
     pub fn flattenHelp(self: Command, yes: bool) Command {
         var c = self;
         c.flatten_help = yes;
+        return c;
+    }
+
+    /// Allow a non-multiple arg to be given more than once, keeping the last
+    /// (clap's `args_override_self`); otherwise a repeat is an error.
+    pub fn argsOverrideSelf(self: Command, yes: bool) Command {
+        var c = self;
+        c.args_override_self = yes;
         return c;
     }
 

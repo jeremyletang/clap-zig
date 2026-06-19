@@ -68,13 +68,14 @@ fn appendMessage(b: *Buf, e: errors.Error) void {
         .no_equals => b.print("equal sign is needed when assigning values to '{s}'", .{arg}),
         .too_many_values => b.print("unexpected value '{s}' for '{s}' found; no more were expected", .{ e.value orelse "", arg }),
         .argument_conflict => {
-            if (e.value) |other| {
+            if (e.multiple_use) {
+                b.print("the argument '{s}' cannot be used multiple times", .{arg});
+            } else if (e.value) |other| {
                 b.print("the argument '{s}' cannot be used with '{s}'", .{ arg, other });
             } else {
                 b.print("the argument '{s}' cannot be used with a subcommand", .{arg});
             }
         },
-        .argument_used_multiple_times => b.print("the argument '{s}' cannot be used multiple times", .{arg}),
         .invalid_subcommand => b.print("unrecognized subcommand '{s}'", .{arg}),
         .missing_required_argument => {
             b.add("the following required arguments were not provided:\n  ");

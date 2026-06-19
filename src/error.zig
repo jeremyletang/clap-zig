@@ -19,7 +19,6 @@ pub const ErrorKind = enum {
     missing_required_argument,
     missing_subcommand,
     argument_conflict,
-    argument_used_multiple_times,
 
     /// Whether this kind is a successful help/version display (exit 0) vs an error (exit 2).
     pub fn isSuccess(self: ErrorKind) bool {
@@ -50,4 +49,6 @@ pub const Error = struct {
     used_ids: ?[]const []const u8 = null,
     /// for `display_help`: whether `--help` (long) vs `-h` (short) was requested
     help_long: bool = false,
+    /// for `argument_conflict`: the "cannot be used multiple times" variant
+    multiple_use: bool = false,
 };

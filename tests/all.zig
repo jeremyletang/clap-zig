@@ -8,5 +8,7 @@ test {
     _ = @import("clap_flags_test.zig");
     _ = @import("clap_positionals_test.zig");
     _ = @import("clap_possible_values_test.zig");
+    _ = @import("clap_indices_test.zig");
+    _ = @import("clap_action_test.zig");
     _ = @import("coverage_test.zig");
 }

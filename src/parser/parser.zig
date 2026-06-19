@@ -91,6 +91,8 @@ const Parser = struct {
     pos_counter: usize = 1,
     trailing: bool = false,
     valid_arg_found: bool = false,
+    /// clap's `cur_idx`: advanced once per flag-char slot and once per value slot.
+    cur_idx: usize = 0,
 
     fn loop(self: *Parser) Outcome {
         var subcmd_name: ?[]const u8 = null;
@@ -282,6 +284,7 @@ const Parser = struct {
     }
 
     fn parseOptValue(self: *Parser, a: *const Arg, attached: ?[]const u8, has_eq: bool) FlagResult {
+        self.cur_idx += 1; // the option's own flag slot (clap records the value index next)
         if (a.require_equals and !has_eq) {
             if (a.effectiveNumArgs().min == 0) {
                 self.recordArg(a, &.{}, .command_line);
@@ -316,7 +319,10 @@ const Parser = struct {
     fn captureExternal(self: *Parser, name: []const u8) PosResult {
         const child = ArgMatches.create(self.allocator) catch @panic("clap: OOM matching");
         child.startOccurrence(external_id, .command_line);
-        while (self.cursor.next()) |t| child.pushValue(external_id, t);
+        while (self.cursor.next()) |t| {
+            self.cur_idx += 1;
+            child.pushValue(external_id, t, self.cur_idx);
+        }
         self.matches.setSubcommand(name, child);
         return .done;
     }
@@ -327,21 +333,42 @@ const Parser = struct {
         self.matches.startOccurrence(a.id, source);
         if (vals.len == 0) {
             if (a.default_missing_value) |dm| {
-                self.matches.pushValue(a.id, dm);
+                self.pushVal(a.id, dm);
             } else if (a.action_val == .set_true) {
-                self.matches.pushValue(a.id, "true");
+                self.pushVal(a.id, "true");
             } else if (a.action_val == .set_false) {
-                self.matches.pushValue(a.id, "false");
+                self.pushVal(a.id, "false");
+            } else if (a.action_val == .count) {
+                self.pushVal(a.id, ""); // value unused (getCount reads occurrences); records an index
             }
             return;
         }
-        for (vals) |v| self.matches.pushValue(a.id, v);
+        for (vals) |v| self.pushVal(a.id, v);
+    }
+
+    /// Advance the parse-index and record one value at the new slot.
+    fn pushVal(self: *Parser, id: []const u8, val: []const u8) void {
+        self.cur_idx += 1;
+        self.matches.pushValue(id, val, self.cur_idx);
     }
 
     fn applyDefaults(self: *Parser) void {
         for (self.cmd.arg_list.items) |*a| {
-            if (a.default_value) |dv| self.matches.setDefault(a.id, dv);
+            const dv = a.default_value orelse implicitDefault(a.action_val) orelse continue;
+            self.cur_idx += 1;
+            self.matches.setDefault(a.id, dv, self.cur_idx);
         }
+    }
+
+    /// SetTrue/SetFalse/Count carry an implicit default, so they are always present
+    /// (contains-true) with a value even when absent — matching clap.
+    fn implicitDefault(action_val: @import("../builder/action.zig").ArgAction) ?[]const u8 {
+        return switch (action_val) {
+            .set_true => "false",
+            .set_false => "true",
+            .count => "0",
+            else => null,
+        };
     }
 
     // ----- error helpers -----
@@ -350,11 +377,16 @@ const Parser = struct {
         return .{ .kind = kind, .cmd = self.cmd, .arg = name, .value = value };
     }
 
-    /// A non-multiple flag/option used a second time on the command line is an error.
+    /// A non-multiple flag/option used a second time: error, unless
+    /// `args_override_self` is set, in which case the prior occurrence is cleared.
     fn reuseError(self: *Parser, a: *const Arg) ?Error {
         if (a.isMultiple() or !self.matches.isPresent(a.id)) return null;
+        if (self.cmd.args_override_self) {
+            self.matches.reset(a.id);
+            return null;
+        }
         const disp = if (a.long_name) |l| self.dashed(l) else self.shortDisplay(a.short_char.?);
-        return self.mkErr(.argument_used_multiple_times, disp, null);
+        return .{ .kind = .argument_conflict, .cmd = self.cmd, .arg = disp, .multiple_use = true };
     }
 
     fn dashed(self: *Parser, name: []const u8) []const u8 {

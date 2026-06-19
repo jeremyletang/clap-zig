@@ -83,6 +83,32 @@ test "indices_mult_flags_opt_combined_eq (-eieeio=val)" {
     try testing.expectEqualSlices(usize, &.{7}, m.indicesOf("option").?);
 }
 
+test "indices_mult_opts / index_mult_opts (num_args(1..) options)" {
+    var arena = std.heap.ArenaAllocator.init(testing.allocator);
+    defer arena.deinit();
+    const a = arena.allocator();
+    var cmd = Command.init(a, "ind")
+        .argsOverrideSelf(true)
+        .arg(Arg.new("exclude").short('e').action(.append).numArgs(clap.ValueRange.atLeast(1)))
+        .arg(Arg.new("include").short('i').action(.set).numArgs(clap.ValueRange.atLeast(1)));
+    const m = run(a, &cmd, &.{ "-e", "A", "B", "-i", "B", "C", "-e", "C" }).matches;
+    try testing.expectEqualSlices(usize, &.{ 2, 3, 8 }, m.indicesOf("exclude").?);
+    try testing.expectEqualSlices(usize, &.{ 5, 6 }, m.indicesOf("include").?);
+    try testing.expectEqual(@as(?usize, 2), m.indexOf("exclude"));
+    try testing.expectEqual(@as(?usize, 5), m.indexOf("include"));
+}
+
+test "indices_mult_opt_value_no_delim_eq (-o=val1,val2,val3 -> one value)" {
+    var arena = std.heap.ArenaAllocator.init(testing.allocator);
+    defer arena.deinit();
+    const a = arena.allocator();
+    var cmd = Command.init(a, "myapp")
+        .argsOverrideSelf(true)
+        .arg(Arg.new("option").short('o').action(.set).numArgs(clap.ValueRange.atLeast(1)));
+    const m = run(a, &cmd, &.{"-o=val1,val2,val3"}).matches;
+    try testing.expectEqualSlices(usize, &.{2}, m.indicesOf("option").?);
+}
+
 test "indices_mult_opt_mult_flag" {
     var arena = std.heap.ArenaAllocator.init(testing.allocator);
     defer arena.deinit();

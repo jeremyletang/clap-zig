@@ -71,6 +71,17 @@ test "possible_values_of_option_multiple via append (+ fail)" {
     try testing.expectEqual(clap.ErrorKind.invalid_value, run(a, &bad, &.{ "--option", "test123", "--option", "notest" }).err.kind);
 }
 
+test "ignore_case_multiple_fail (multi-value option, case-sensitive)" {
+    var arena = std.heap.ArenaAllocator.init(testing.allocator);
+    defer arena.deinit();
+    const a = arena.allocator();
+    var cmd = Command.init(a, "pv")
+        .arg(Arg.new("option").short('o').long("option").action(.set)
+            .valueParser(&.{ "test123", "test321" })
+            .numArgs(clap.ValueRange.atLeast(1)));
+    try testing.expectEqual(clap.ErrorKind.invalid_value, run(a, &cmd, &.{ "--option", "test123", "teST123", "test321" }).err.kind);
+}
+
 test "ignore_case_fail (case-sensitive by default)" {
     var arena = std.heap.ArenaAllocator.init(testing.allocator);
     defer arena.deinit();

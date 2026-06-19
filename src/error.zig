@@ -12,6 +12,8 @@ pub const ErrorKind = enum {
     /// help shown because nothing was supplied and `arg_required_else_help` is set (exit 2).
     display_help_on_missing_argument_or_subcommand,
     invalid_value,
+    wrong_number_of_values,
+    too_few_values,
     unknown_argument,
     invalid_subcommand,
     no_equals,
@@ -51,4 +53,9 @@ pub const Error = struct {
     help_long: bool = false,
     /// for `argument_conflict`: the "cannot be used multiple times" variant
     multiple_use: bool = false,
+    /// for `invalid_value`: the "a value is required ... but none was supplied" variant
+    value_required: bool = false,
+    /// for `wrong_number_of_values` / `too_few_values`: expected vs provided counts
+    n_expected: usize = 0,
+    n_provided: usize = 0,
 };

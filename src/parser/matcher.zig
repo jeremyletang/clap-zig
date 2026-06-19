@@ -83,6 +83,15 @@ pub const ArgMatches = struct {
         }
     }
 
+    /// Clear stored values/indices but keep the occurrence count (clap's `Count`
+    /// replaces its value each time while still counting every occurrence).
+    pub fn clearValues(self: *ArgMatches, id: []const u8) void {
+        if (self.map.getPtr(id)) |m| {
+            m.values.clearRetainingCapacity();
+            m.indices.clearRetainingCapacity();
+        }
+    }
+
     pub fn setSubcommand(self: *ArgMatches, name: []const u8, matches: *ArgMatches) void {
         self.sub = .{ .name = name, .matches = matches };
     }
@@ -120,11 +129,11 @@ pub const ArgMatches = struct {
         return self.getOne(bool, id) orelse false;
     }
 
-    /// The parse-index of the (last) value of `id`, or null if absent.
+    /// The parse-index of the first value of `id`, or null if absent (clap's `index_of`).
     pub fn indexOf(self: *const ArgMatches, id: []const u8) ?usize {
         const m = self.map.getPtr(id) orelse return null;
         if (m.indices.items.len == 0) return null;
-        return m.indices.items[m.indices.items.len - 1];
+        return m.indices.items[0];
     }
 
     /// All parse-indices of `id`'s values, or null if absent.

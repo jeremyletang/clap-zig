@@ -52,7 +52,17 @@ fn usesUsage(kind: errors.ErrorKind) bool {
 fn appendMessage(b: *Buf, e: errors.Error) void {
     const arg = e.arg orelse "";
     switch (e.kind) {
+        .wrong_number_of_values => b.print("{d} values required for '{s}' but {d} {s} provided", .{
+            e.n_expected, arg, e.n_provided, if (e.n_provided == 1) "was" else "were",
+        }),
+        .too_few_values => b.print("{d} values required by '{s}'; only {d} were provided", .{
+            e.n_expected, arg, e.n_provided,
+        }),
         .invalid_value => {
+            if (e.value_required) {
+                b.print("a value is required for '{s}' but none was supplied", .{arg});
+                return;
+            }
             b.print("invalid value '{s}' for '{s}'", .{ e.value orelse "", arg });
             if (e.reason) |r| b.print(": {s}", .{r});
             if (e.possible_values) |pv| {

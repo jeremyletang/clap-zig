@@ -93,11 +93,25 @@ const Parser = struct {
     valid_arg_found: bool = false,
     /// clap's `cur_idx`: advanced once per flag-char slot and once per value slot.
     cur_idx: usize = 0,
+    /// values collected so far for the pending option (`state == .opt`).
+    pending_count: usize = 0,
 
     fn loop(self: *Parser) Outcome {
         var subcmd_name: ?[]const u8 = null;
         while (self.cursor.next()) |token| {
             if (!self.trailing) {
+                const parsed = lex.classify(token);
+                // While collecting an option's values, a plain value continues it;
+                // a flag/escape ends it (verify the count) before being handled.
+                if (self.state == .opt) {
+                    switch (parsed) {
+                        .value, .stdio => {
+                            self.consumeOptValue(token);
+                            continue;
+                        },
+                        else => if (self.finalizePending()) |e| return .{ .err = e },
+                    }
+                }
                 if (self.state == .values_done) {
                     switch (self.checkSubcommand(token)) {
                         .none => {},
@@ -109,7 +123,7 @@ const Parser = struct {
                         .err => |e| return .{ .err = e },
                     }
                 }
-                if (self.handleFlagsAndOptions(token)) |outcome| {
+                if (self.handleFlagsAndOptions(token, parsed)) |outcome| {
                     switch (outcome) {
                         .consumed => continue,
                         .ret => |o| return o,
@@ -123,11 +137,30 @@ const Parser = struct {
                 .err => |e| return .{ .err = e },
             }
         }
+        if (self.finalizePending()) |e| return .{ .err = e };
         if (subcmd_name) |name| {
             if (self.parseSubcommand(name)) |e| return .{ .err = e };
         }
         self.applyDefaults();
         return .{ .matches = self.matches };
+    }
+
+    /// Append a value to the pending option, ending collection once `max` is reached.
+    fn consumeOptValue(self: *Parser, token: []const u8) void {
+        const a = self.cmd.findArgById(self.state.opt).?;
+        self.pushVal(a.id, token);
+        self.pending_count += 1;
+        if (self.pending_count >= a.effectiveNumArgs().max) self.state = .values_done;
+    }
+
+    /// Finish a pending option, verifying it received at least `min` values.
+    fn finalizePending(self: *Parser) ?Error {
+        if (self.state != .opt) return null;
+        const a = self.cmd.findArgById(self.state.opt).?;
+        self.state = .values_done;
+        const r = a.effectiveNumArgs();
+        if (self.pending_count >= r.min) return null;
+        return self.numValsError(a, r, self.pending_count);
     }
 
     // ----- token dispatch -----
@@ -138,24 +171,17 @@ const Parser = struct {
         fall_through,
     };
 
-    fn handleFlagsAndOptions(self: *Parser, token: []const u8) ?FlagDispatch {
-        switch (lex.classify(token)) {
+    fn handleFlagsAndOptions(self: *Parser, token: []const u8, parsed: lex.ParsedArg) ?FlagDispatch {
+        _ = token;
+        switch (parsed) {
             .escape => {
                 self.trailing = true;
                 return .consumed;
             },
             .long => |l| return self.applyFlagResult(self.parseLong(l)),
             .short => |s| return self.applyFlagResult(self.parseShort(s)),
-            .stdio, .value => {},
+            .stdio, .value => return .fall_through,
         }
-        if (self.state == .opt) {
-            const id = self.state.opt;
-            const a = self.cmd.findArgById(id).?;
-            self.recordArg(a, &.{token}, .command_line);
-            self.state = .values_done;
-            return .consumed;
-        }
-        return .fall_through;
     }
 
     fn applyFlagResult(self: *Parser, r: FlagResult) FlagDispatch {
@@ -165,7 +191,10 @@ const Parser = struct {
                 return .consumed;
             },
             .opt => |id| {
+                // start a fresh occurrence; values are gathered by consumeOptValue
                 self.state = .{ .opt = id };
+                self.pending_count = 0;
+                self.matches.startOccurrence(id, .command_line);
                 return .consumed;
             },
             .help => |long| return .{ .ret = helpOutcome(self.cmd, long) },
@@ -339,7 +368,9 @@ const Parser = struct {
             } else if (a.action_val == .set_false) {
                 self.pushVal(a.id, "false");
             } else if (a.action_val == .count) {
-                self.pushVal(a.id, ""); // value unused (getCount reads occurrences); records an index
+                // Count keeps only the latest index (value unused; getCount reads occurrences)
+                self.matches.clearValues(a.id);
+                self.pushVal(a.id, "");
             }
             return;
         }
@@ -401,6 +432,33 @@ const Parser = struct {
         if (a.long_name) |l| return self.dashed(l);
         if (a.short_char) |c| return self.shortDisplay(c);
         return a.id;
+    }
+
+    /// Build the wrong/too-few/required-value error for a pending option that
+    /// got `count` values when its range required more.
+    fn numValsError(self: *Parser, a: *const Arg, r: @import("../builder/range.zig").ValueRange, count: usize) Error {
+        if (count == 0) {
+            return .{ .kind = .invalid_value, .cmd = self.cmd, .arg = self.multiValDisplay(a, 1, r.max > 1), .value_required = true };
+        }
+        if (r.min == r.max) {
+            return .{ .kind = .wrong_number_of_values, .cmd = self.cmd, .arg = self.multiValDisplay(a, r.min, false), .n_expected = r.min, .n_provided = count };
+        }
+        return .{ .kind = .too_few_values, .cmd = self.cmd, .arg = self.multiValDisplay(a, r.min, true), .n_expected = r.min, .n_provided = count };
+    }
+
+    /// e.g. `-o <option> <option> <option>` (repeats) with an optional trailing `...`.
+    fn multiValDisplay(self: *Parser, a: *const Arg, repeats: usize, ellipsis: bool) []const u8 {
+        var b: std.ArrayListUnmanaged(u8) = .empty;
+        b.appendSlice(self.allocator, self.argDisplay(a)) catch @panic("clap: OOM");
+        const name = a.value_name orelse a.id;
+        var i: usize = 0;
+        while (i < repeats) : (i += 1) {
+            b.appendSlice(self.allocator, " <") catch @panic("clap: OOM");
+            b.appendSlice(self.allocator, name) catch @panic("clap: OOM");
+            b.appendSlice(self.allocator, ">") catch @panic("clap: OOM");
+        }
+        if (ellipsis) b.appendSlice(self.allocator, "...") catch @panic("clap: OOM");
+        return b.items;
     }
 
     /// Display for a require_equals option in a no-equals error: `--config=<cfg>`.

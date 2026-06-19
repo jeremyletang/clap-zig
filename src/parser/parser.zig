@@ -213,8 +213,9 @@ const Parser = struct {
     };
 
     fn checkSubcommand(self: *Parser, token: []const u8) SubCheck {
-        if (!self.cmd.disable_help_subcommand and std.mem.eql(u8, token, "help") and
-            self.cmd.findSubcommand("help") == null)
+        // the auto `help` subcommand only exists when there are real subcommands
+        if (self.cmd.hasSubcommands() and !self.cmd.disable_help_subcommand and
+            std.mem.eql(u8, token, "help") and self.cmd.findSubcommand("help") == null)
         {
             return self.helpSubcommandTarget();
         }

@@ -164,4 +164,16 @@ pub const entries = [_]Entry{
     .{ .file = "multiple_values.rs", .name = "positional_exact_more", .status = .deferred, .note = "positional num_args enforcement" },
     .{ .file = "multiple_values.rs", .name = "positional_min_less", .status = .deferred, .note = "positional num_args enforcement" },
     .{ .file = "multiple_values.rs", .name = "positional_max_more", .status = .deferred, .note = "positional num_args enforcement" },
+
+    // ----- help.rs (self-contained cases; complex_app/template/wrap/global ones pending) -----
+    .{ .file = "help.rs", .name = "help_short", .status = .ported },
+    .{ .file = "help.rs", .name = "help_long", .status = .ported },
+    .{ .file = "help.rs", .name = "help_no_subcommand", .status = .ported },
+    .{ .file = "help.rs", .name = "help_subcommand", .status = .ported },
+    .{ .file = "help.rs", .name = "req_last_arg_usage", .status = .ported },
+    .{ .file = "help.rs", .name = "last_arg_mult_usage", .status = .ported },
+    .{ .file = "help.rs", .name = "last_arg_mult_usage_req", .status = .ported },
+    .{ .file = "help.rs", .name = "issue_1487", .status = .ported },
+    .{ .file = "help.rs", .name = "option_usage_order", .status = .ported },
+    .{ .file = "help.rs", .name = "args_negate_sc", .status = .deferred, .note = "args_conflicts two-line usage" },
 };

@@ -84,12 +84,13 @@ fn appendPositionals(allocator: std.mem.Allocator, cmd: *const Command, members:
     while (cmd.getPositional(i)) |a| : (i += 1) {
         if (contains(members, a.id)) continue;
         if (a.last_flag) {
+            // required last -> `-- <X>...`; optional last -> `[-- <X>...]`
             var b = Buf{ .allocator = allocator };
-            b.add("[-- <");
+            b.add(if (a.required_flag) "-- <" else "[-- <");
             b.add(a.value_name orelse a.id);
             b.add(">");
             if (a.isMultiple()) b.add("...");
-            b.add("]");
+            if (!a.required_flag) b.add("]");
             push(allocator, parts, b.items());
         } else {
             push(allocator, parts, layout.positionalNotationStr(allocator, a));

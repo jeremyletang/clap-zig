@@ -75,6 +75,13 @@ pub const entries = [_]Entry{
     .{ .file = "help.rs", .name = "only_custom_heading_opts_no_args", .status = .ported },
     .{ .file = "help.rs", .name = "ripgrep_usage_using_templates", .status = .ported },
     .{ .file = "help.rs", .name = "dont_strip_padding_issue_5083", .status = .ported },
+    .{ .file = "help.rs", .name = "no_wrap_default_help", .status = .ported },
+    .{ .file = "help.rs", .name = "wrapped_help", .status = .ported },
+    .{ .file = "help.rs", .name = "unwrapped_help", .status = .ported },
+    .{ .file = "help.rs", .name = "final_word_wrapping", .status = .deferred, .note = "auto next_line_help (term too narrow)" },
+    .{ .file = "help.rs", .name = "wrapping_newline_chars", .status = .deferred, .note = "wrap preserving internal spaces" },
+    .{ .file = "help.rs", .name = "wrapped_indentation", .status = .deferred, .note = "wrap preserving internal spaces" },
+    .{ .file = "help.rs", .name = "possible_value_wrapped_help", .status = .deferred, .note = "long-help possible-value wrapping" },
     .{ .file = "help.rs", .name = "custom_headers_headers", .status = .deferred, .note = "multi-value-name usage rendering" },
     .{ .file = "help.rs", .name = "custom_help_headers_hide_args", .status = .deferred, .note = "hide_short_help" },
 

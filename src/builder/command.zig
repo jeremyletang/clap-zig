@@ -25,6 +25,8 @@ pub const Command = struct {
     author_text: ?[]const u8 = null,
     help_template_text: ?[]const u8 = null,
     usage_override: ?[]const u8 = null,
+    /// when set (>0), help text wraps to this column count (clap's `term_width`)
+    term_width: ?usize = null,
     /// the heading stamped onto subsequently-added args (clap's `next_help_heading`)
     current_help_heading: ?[]const u8 = null,
     before_help_text: ?[]const u8 = null,
@@ -140,6 +142,13 @@ pub const Command = struct {
     pub fn overrideUsage(self: Command, t: []const u8) Command {
         var c = self;
         c.usage_override = t;
+        return c;
+    }
+
+    /// Wrap help text to `n` columns (clap's `term_width`); 0 disables wrapping.
+    pub fn termWidth(self: Command, n: usize) Command {
+        var c = self;
+        c.term_width = n;
         return c;
     }
 

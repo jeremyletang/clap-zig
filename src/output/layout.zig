@@ -43,17 +43,64 @@ pub const Entry = struct { term: []const u8, help: []const u8 };
 
 /// Render a left-aligned two-column table: `indent` spaces, the term padded to
 /// the widest term, two separator spaces, then the help. Trailing spaces are
-/// emitted when help is empty, matching clap's output byte-for-byte.
-pub fn table(buf: *Buf, indent: usize, entries: []const Entry) void {
+/// emitted when help is empty, matching clap's output byte-for-byte. When
+/// `term_width` is set (>0), the help column word-wraps to fit it, continuation
+/// lines aligned under the help column.
+pub fn table(buf: *Buf, indent: usize, entries: []const Entry, term_width: ?usize) void {
     var width: usize = 0;
     for (entries) |e| width = @max(width, e.term.len);
+    const offset = indent + width + 2; // where the help column starts
     for (entries) |e| {
         buf.spaces(indent);
         buf.add(e.term);
         buf.spaces(width - e.term.len + 2);
-        buf.add(e.help);
+        buf.add(wrapHelp(buf.allocator, e.help, term_width, offset));
         buf.addByte('\n');
     }
+}
+
+/// Word-wrap `help` to `term_width - offset` columns, prefixing continuation
+/// lines with `offset` spaces; honors explicit newlines as hard breaks. No
+/// wrapping when `term_width` is null or <= offset. Port of clap's textwrap.
+fn wrapHelp(allocator: std.mem.Allocator, help: []const u8, term_width: ?usize, offset: usize) []const u8 {
+    const tw = term_width orelse return help;
+    if (tw == 0 or tw <= offset or help.len == 0) return help;
+    const avail = tw - offset;
+
+    var out: std.ArrayListUnmanaged(u8) = .empty;
+    var col: usize = 0; // columns used on the current output line
+    var first_word = true;
+    var lines = std.mem.splitScalar(u8, help, '\n');
+    var first_line = true;
+    while (lines.next()) |line| {
+        if (!first_line) {
+            newlineIndent(allocator, &out, offset);
+            col = 0;
+            first_word = true;
+        }
+        first_line = false;
+        var words = std.mem.tokenizeScalar(u8, line, ' ');
+        while (words.next()) |word| {
+            if (!first_word and col + 1 + word.len > avail) {
+                newlineIndent(allocator, &out, offset);
+                col = 0;
+                first_word = true;
+            }
+            if (!first_word) {
+                out.append(allocator, ' ') catch oom();
+                col += 1;
+            }
+            out.appendSlice(allocator, word) catch oom();
+            col += word.len;
+            first_word = false;
+        }
+    }
+    return out.items;
+}
+
+fn newlineIndent(allocator: std.mem.Allocator, out: *std.ArrayListUnmanaged(u8), offset: usize) void {
+    out.append(allocator, '\n') catch oom();
+    out.appendNTimes(allocator, ' ', offset) catch oom();
 }
 
 /// The value notation for a positional as shown in usage / the Arguments table:

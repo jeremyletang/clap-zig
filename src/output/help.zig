@@ -291,7 +291,7 @@ fn flattenedBlock(b: *Buf, cmd: *const Command) void {
     var entries: std.ArrayListUnmanaged(Entry) = .empty;
     collectOptions(b.allocator, cmd, &entries);
     collectPositionals(b.allocator, cmd, &entries);
-    layout.table(b, 2, entries.items);
+    layout.table(b, 2, entries.items, cmd.term_width);
 }
 
 fn makeHelpSubcommand(allocator: std.mem.Allocator, parent: *const Command) Command {
@@ -337,7 +337,7 @@ fn writeCommands(b: *Buf, cmd: *const Command) void {
     }
     b.addByte('\n');
     b.add("Commands:\n");
-    layout.table(b, 2, entries.items);
+    layout.table(b, 2, entries.items, cmd.term_width);
 }
 
 // ----- Arguments (positionals) -----
@@ -347,7 +347,7 @@ fn writeArguments(b: *Buf, cmd: *const Command) void {
     collectPositionals(b.allocator, cmd, &entries);
     b.addByte('\n');
     b.add("Arguments:\n");
-    layout.table(b, 2, entries.items);
+    layout.table(b, 2, entries.items, cmd.term_width);
 }
 
 fn collectPositionals(allocator: std.mem.Allocator, cmd: *const Command, entries: *std.ArrayListUnmanaged(Entry)) void {
@@ -370,7 +370,7 @@ fn writeOptions(b: *Buf, cmd: *const Command) void {
     if (entries.items.len != 0) {
         b.addByte('\n');
         b.add("Options:\n");
-        layout.table(b, 2, entries.items);
+        layout.table(b, 2, entries.items, cmd.term_width);
     }
     writeHeadedSections(b, cmd);
 }
@@ -397,7 +397,7 @@ fn writeHeadedSections(b: *Buf, cmd: *const Command) void {
         b.addByte('\n');
         b.add(heading);
         b.add(":\n");
-        layout.table(b, 2, entries.items);
+        layout.table(b, 2, entries.items, cmd.term_width);
     }
 }
 
@@ -438,7 +438,7 @@ fn appendHeadingSections(allocator: std.mem.Allocator, cmd: *const Command, sect
             const term = if (x.isPositional()) layout.positionalNotationStr(allocator, x) else optionTerm(allocator, x);
             entries.append(allocator, .{ .term = term, .help = argHelp(allocator, x) }) catch oom();
         }
-        sections.append(allocator, section(allocator, heading, tableStr(allocator, entries.items))) catch oom();
+        sections.append(allocator, section(allocator, heading, tableStr(allocator, entries.items, cmd.term_width))) catch oom();
     }
 }
 
@@ -457,7 +457,7 @@ fn optionRows(allocator: std.mem.Allocator, cmd: *const Command) []const u8 {
     if (cmd.hasVersionFlag()) {
         entries.append(allocator, .{ .term = "-V, --version", .help = "Print version" }) catch oom();
     }
-    return tableStr(allocator, entries.items);
+    return tableStr(allocator, entries.items, cmd.term_width);
 }
 
 fn positionalRows(allocator: std.mem.Allocator, cmd: *const Command) []const u8 {
@@ -467,7 +467,7 @@ fn positionalRows(allocator: std.mem.Allocator, cmd: *const Command) []const u8 
         if (a.is_hidden) continue;
         entries.append(allocator, .{ .term = layout.positionalNotationStr(allocator, a), .help = argHelp(allocator, a) }) catch oom();
     }
-    return tableStr(allocator, entries.items);
+    return tableStr(allocator, entries.items, cmd.term_width);
 }
 
 fn subcommandRows(allocator: std.mem.Allocator, cmd: *const Command) []const u8 {
@@ -479,12 +479,12 @@ fn subcommandRows(allocator: std.mem.Allocator, cmd: *const Command) []const u8 
     if (!cmd.disable_help_subcommand) {
         entries.append(allocator, .{ .term = "help", .help = help_about }) catch oom();
     }
-    return tableStr(allocator, entries.items);
+    return tableStr(allocator, entries.items, cmd.term_width);
 }
 
-fn tableStr(allocator: std.mem.Allocator, entries: []const Entry) []const u8 {
+fn tableStr(allocator: std.mem.Allocator, entries: []const Entry, term_width: ?usize) []const u8 {
     var b = Buf{ .allocator = allocator };
-    layout.table(&b, 2, entries);
+    layout.table(&b, 2, entries, term_width);
     return b.items();
 }
 

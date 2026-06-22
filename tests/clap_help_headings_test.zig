@@ -88,6 +88,32 @@ test "custom_headers_with_default_options_first" {
     );
 }
 
+test "custom_help_headers_hide_args" {
+    var arena = std.heap.ArenaAllocator.init(testing.allocator);
+    defer arena.deinit();
+    const a = arena.allocator();
+    var cmd = Command.init(a, "test").about("does stuff").version("1.4")
+        .nextHelpHeading("NETWORKING")
+        .arg(Arg.new("no-proxy").short('n').long("no-proxy").action(.set_true).help("Do not use system proxy settings").hideShortHelp(true))
+        .nextHelpHeading("SPECIAL")
+        .arg(Arg.fromUsage("-b --song <song>", "Change which song is played for birthdays").required(true).helpHeading("OVERRIDE SPECIAL"))
+        .arg(Arg.fromUsage("-v --song-volume <volume>", "Change the volume of the birthday song").required(true))
+        .nextHelpHeading(null)
+        .arg(Arg.new("server-addr").short('a').long("server-addr").action(.set_true).help("Set server address").helpHeading("NETWORKING").hideShortHelp(true));
+    try testing.expectEqualStrings(
+        "does stuff\n\n" ++
+            "Usage: test [OPTIONS] --song <song> --song-volume <volume>\n\n" ++
+            "Options:\n" ++
+            "  -h, --help     Print help (see more with '--help')\n" ++
+            "  -V, --version  Print version\n\n" ++
+            "OVERRIDE SPECIAL:\n" ++
+            "  -b, --song <song>  Change which song is played for birthdays\n\n" ++
+            "SPECIAL:\n" ++
+            "  -v, --song-volume <volume>  Change the volume of the birthday song\n",
+        help(a, &cmd, &.{"-h"}),
+    );
+}
+
 test "custom_headers_headers" {
     var arena = std.heap.ArenaAllocator.init(testing.allocator);
     defer arena.deinit();

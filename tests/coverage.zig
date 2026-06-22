@@ -91,7 +91,8 @@ pub const entries = [_]Entry{
     .{ .file = "help.rs", .name = "wrapped_indentation", .status = .ported },
     .{ .file = "help.rs", .name = "possible_value_wrapped_help", .status = .deferred, .note = "long-help possible-value wrapping" },
     .{ .file = "help.rs", .name = "custom_headers_headers", .status = .ported },
-    .{ .file = "help.rs", .name = "custom_help_headers_hide_args", .status = .deferred, .note = "hide_short_help" },
+    .{ .file = "help.rs", .name = "custom_help_headers_hide_args", .status = .ported },
+    .{ .file = "help.rs", .name = "explicit_short_long_help", .status = .ported },
 
     // ----- default_vals.rs (default_value_if / default_values_if / *_ifs) -----
     .{ .file = "default_vals.rs", .name = "default_if_arg_present_no_default", .status = .ported },

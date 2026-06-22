@@ -29,5 +29,6 @@ test {
     _ = @import("clap_display_order_test.zig");
     _ = @import("clap_hide_help_test.zig");
     _ = @import("clap_long_help_test.zig");
+    _ = @import("clap_explicit_help_test.zig");
     _ = @import("coverage_test.zig");
 }

@@ -121,6 +121,11 @@ fn appendPositionals(allocator: std.mem.Allocator, cmd: *const Command, members:
 pub fn needsOptionsTag(cmd: *const Command) bool {
     for (cmd.arg_list.items) |*a| {
         if (a.isPositional() or a.is_hidden) continue;
+        // help/version-action flags don't count toward `[OPTIONS]`
+        switch (a.action_val) {
+            .help, .help_short, .help_long, .version => continue,
+            else => {},
+        }
         if (cmd.argInRequiredGroup(a)) continue;
         return true;
     }

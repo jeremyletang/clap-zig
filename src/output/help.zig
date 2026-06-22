@@ -187,11 +187,11 @@ fn longSection(b: *Buf, entries: []const LongEntry, term_width: ?usize) void {
         b.add("  ");
         b.add(e.term);
         b.addByte('\n');
-        if (e.help.len != 0) {
-            b.add("          ");
-            b.add(layout.wrapHelp(b.allocator, e.help, term_width, 10));
-            b.addByte('\n');
-        }
+        // the help line is always emitted (clap shows an indented blank line for
+        // an arg with no help text)
+        b.add("          ");
+        b.add(layout.wrapHelp(b.allocator, e.help, term_width, 10));
+        b.addByte('\n');
         if (e.pvs) |pvs| {
             b.add("\n          Possible values:\n");
             for (pvs) |v| {

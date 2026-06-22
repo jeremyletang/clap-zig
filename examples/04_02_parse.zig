@@ -9,7 +9,7 @@ pub fn cli(a: std.mem.Allocator) clap.Command {
         .about(harness.pkg_about)
         .version(harness.pkg_version)
         .arg(clap.Arg.fromUsage("<PORT>", "Network port to use")
-            .valueParserFn(clap.rangedInt(u16, 1, 65535)));
+        .valueParserFn(clap.rangedInt(u16, 1, 65535)));
 }
 
 pub fn run(a: std.mem.Allocator, argv: []const []const u8, out: *std.ArrayList(u8)) u8 {

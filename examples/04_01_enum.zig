@@ -9,10 +9,10 @@ pub fn cli(a: std.mem.Allocator) clap.Command {
         .about(harness.pkg_about)
         .version(harness.pkg_version)
         .arg(clap.Arg.fromUsage("<MODE>", "What mode to run the program in")
-            .possibleValues(&.{
-            .{ .name = "fast", .help = "Run swiftly" },
-            .{ .name = "slow", .help = "Crawl slowly but steadily" },
-        }));
+        .possibleValues(&.{
+        .{ .name = "fast", .help = "Run swiftly" },
+        .{ .name = "slow", .help = "Crawl slowly but steadily" },
+    }));
 }
 
 pub fn run(a: std.mem.Allocator, argv: []const []const u8, out: *std.ArrayList(u8)) u8 {

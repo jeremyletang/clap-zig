@@ -28,11 +28,11 @@ pub fn cli(a: std.mem.Allocator) Command {
             .arg(Arg.fromUsage("head: [COMMIT]", null))
             .arg(Arg.fromUsage("path: [PATH]", null).last(true))
             .arg(Arg.new("color").long("color").valueName("WHEN")
-                .valueParser(&.{ "always", "auto", "never" })
-                .numArgs(clap.ValueRange.between(0, 1))
-                .requireEquals(true)
-                .defaultValue("auto")
-                .defaultMissingValue("always")))
+            .valueParser(&.{ "always", "auto", "never" })
+            .numArgs(clap.ValueRange.between(0, 1))
+            .requireEquals(true)
+            .defaultValue("auto")
+            .defaultMissingValue("always")))
         .subcommand(Command.init(a, "push")
             .about("pushes things")
             .arg(Arg.fromUsage("<REMOTE>", "The remote to target"))
@@ -42,12 +42,12 @@ pub fn cli(a: std.mem.Allocator) Command {
             .argRequiredElseHelp(true)
             .arg(Arg.fromUsage("<PATH>...", "Stuff to add")))
         .subcommand(Command.init(a, "stash")
-            .argsConflictsWithSubcommands(true)
-            .flattenHelp(true)
-            .args(push_args)
-            .subcommand(Command.init(a, "push").args(push_args))
-            .subcommand(Command.init(a, "pop").arg(Arg.fromUsage("[STASH]", null)))
-            .subcommand(Command.init(a, "apply").arg(Arg.fromUsage("[STASH]", null))));
+        .argsConflictsWithSubcommands(true)
+        .flattenHelp(true)
+        .args(push_args)
+        .subcommand(Command.init(a, "push").args(push_args))
+        .subcommand(Command.init(a, "pop").arg(Arg.fromUsage("[STASH]", null)))
+        .subcommand(Command.init(a, "apply").arg(Arg.fromUsage("[STASH]", null))));
 }
 
 /// Parse `argv` and run the program logic, writing all output to `out`.

@@ -77,8 +77,8 @@ test "ignore_case_multiple_fail (multi-value option, case-sensitive)" {
     const a = arena.allocator();
     var cmd = Command.init(a, "pv")
         .arg(Arg.new("option").short('o').long("option").action(.set)
-            .valueParser(&.{ "test123", "test321" })
-            .numArgs(clap.ValueRange.atLeast(1)));
+        .valueParser(&.{ "test123", "test321" })
+        .numArgs(clap.ValueRange.atLeast(1)));
     try testing.expectEqual(clap.ErrorKind.invalid_value, run(a, &cmd, &.{ "--option", "test123", "teST123", "test321" }).err.kind);
 }
 

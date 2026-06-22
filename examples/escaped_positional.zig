@@ -17,8 +17,8 @@ pub fn cli(a: std.mem.Allocator) Command {
         .arg(Arg.fromUsage("eff: -f", null))
         .arg(Arg.fromUsage("pea: -p <PEAR>", null))
         .arg(Arg.fromUsage("slop: [SLOP]", null)
-            .numArgs(clap.ValueRange.atLeast(1))
-            .last(true));
+        .numArgs(clap.ValueRange.atLeast(1))
+        .last(true));
 }
 
 pub fn run(a: std.mem.Allocator, argv: []const []const u8, out: *std.ArrayList(u8)) u8 {

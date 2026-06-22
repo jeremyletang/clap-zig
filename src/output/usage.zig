@@ -100,7 +100,7 @@ fn appendPositionals(allocator: std.mem.Allocator, cmd: *const Command, members:
             b.add(if (a.required_flag or force_required) "-- <" else "[-- <");
             b.add(a.value_name orelse a.id);
             b.add(">");
-            if (a.isMultiple()) b.add("...");
+            if (a.showsEllipsis()) b.add("...");
             if (!(a.required_flag or force_required)) b.add("]");
             push(allocator, parts, b.items());
         } else if (force_required and !a.required_flag) {
@@ -108,7 +108,7 @@ fn appendPositionals(allocator: std.mem.Allocator, cmd: *const Command, members:
             b.add("<");
             b.add(a.value_name orelse a.id);
             b.add(">");
-            if (a.isMultiple()) b.add("...");
+            if (a.showsEllipsis()) b.add("...");
             push(allocator, parts, b.items());
         } else {
             push(allocator, parts, layout.positionalNotationStr(allocator, a));

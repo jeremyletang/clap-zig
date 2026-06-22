@@ -578,6 +578,17 @@ fn optionTerm(allocator: std.mem.Allocator, a: *const Arg) []const u8 {
 
 fn appendValueNotation(b: *Buf, a: *const Arg) void {
     if (!a.takesValue()) return;
+    // multiple explicit value names render as `<one> <two> ...`
+    if (a.value_names) |names| {
+        if (names.len > 1) {
+            for (names) |n| {
+                b.add(" <");
+                b.add(n);
+                b.add(">");
+            }
+            return;
+        }
+    }
     const name = a.value_name orelse a.id;
     if (a.effectiveNumArgs().min == 0) {
         // optional value: attached form with require_equals, else a spaced [<NAME>]

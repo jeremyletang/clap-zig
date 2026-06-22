@@ -360,7 +360,7 @@ fn orderedMissing(allocator: std.mem.Allocator, cmd: *const Command, missing: []
 
 fn requiredPositional(allocator: std.mem.Allocator, a: *const Arg) []const u8 {
     const name = a.value_name orelse a.id;
-    if (a.isMultiple()) return std.fmt.allocPrint(allocator, "<{s}>...", .{name}) catch @panic("clap: OOM");
+    if (a.showsEllipsis()) return std.fmt.allocPrint(allocator, "<{s}>...", .{name}) catch @panic("clap: OOM");
     return std.fmt.allocPrint(allocator, "<{s}>", .{name}) catch @panic("clap: OOM");
 }
 

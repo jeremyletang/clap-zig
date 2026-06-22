@@ -1,6 +1,5 @@
 //! Ported subset of clap's tests/builder/help.rs — `next_help_heading` /
-//! `help_heading` (custom option/positional sections). Cases entangled with
-//! hide_short_help or multi-value-name usage are deferred.
+//! `help_heading` (custom option/positional sections).
 //! https://github.com/clap-rs/clap/blob/master/tests/builder/help.rs
 
 const std = @import("std");
@@ -82,6 +81,29 @@ test "custom_headers_with_default_options_first" {
             "Options:\n" ++
             "  -h, --help     Print help\n" ++
             "  -V, --version  Print version\n\n" ++
+            "NETWORKING:\n" ++
+            "  -n, --no-proxy  Do not use system proxy settings\n" ++
+            "      --port\n",
+        help(a, &cmd, &.{"--help"}),
+    );
+}
+
+test "custom_headers_headers" {
+    var arena = std.heap.ArenaAllocator.init(testing.allocator);
+    defer arena.deinit();
+    const a = arena.allocator();
+    var cmd = Command.init(a, "test").about("does stuff").version("1.4")
+        .arg(Arg.fromUsage("-f --fake <s>", "some help").required(true).valueNames(&.{ "some", "val" }).action(.set).valueDelimiter(':'))
+        .nextHelpHeading("NETWORKING")
+        .arg(Arg.new("no-proxy").short('n').long("no-proxy").action(.set_true).help("Do not use system proxy settings"))
+        .arg(Arg.new("port").long("port").action(.set_true));
+    try testing.expectEqualStrings(
+        "does stuff\n\n" ++
+            "Usage: test [OPTIONS] --fake <some> <val>\n\n" ++
+            "Options:\n" ++
+            "  -f, --fake <some> <val>  some help\n" ++
+            "  -h, --help               Print help\n" ++
+            "  -V, --version            Print version\n\n" ++
             "NETWORKING:\n" ++
             "  -n, --no-proxy  Do not use system proxy settings\n" ++
             "      --port\n",

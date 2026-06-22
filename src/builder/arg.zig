@@ -434,6 +434,14 @@ pub const Arg = struct {
         return self.action_val == .append or self.action_val == .count or self.effectiveNumArgs().isMultiple();
     }
 
+    /// Whether help/usage shows a trailing `...` — i.e. the arg is repeatable or
+    /// takes an unbounded number of values. A fixed multi-value arg (e.g. two
+    /// value names) is NOT ellipsized (clap renders `<a> <b>`, no `...`).
+    pub fn showsEllipsis(self: Arg) bool {
+        return self.action_val == .append or self.action_val == .count or
+            self.effectiveNumArgs().max == range.ValueRange.unbounded;
+    }
+
     // ----- usage-string constructor (mirrors clap's `arg!`) -----
 
     /// Build an `Arg` from a usage string plus optional help, mirroring the

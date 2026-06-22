@@ -164,7 +164,7 @@ pub fn positionalNotation(buf: *Buf, a: *const Arg) void {
     buf.add(if (a.required_flag) "<" else "[");
     buf.add(a.value_name orelse a.id);
     buf.add(if (a.required_flag) ">" else "]");
-    if (a.isMultiple()) buf.add("...");
+    if (a.showsEllipsis()) buf.add("...");
 }
 
 pub fn positionalNotationStr(allocator: std.mem.Allocator, a: *const Arg) []const u8 {
@@ -177,7 +177,7 @@ pub fn positionalNotationStr(allocator: std.mem.Allocator, a: *const Arg) []cons
 /// trailing `...` when it accepts multiple (clap's Arg display in conflicts).
 pub fn conflictDisplay(allocator: std.mem.Allocator, a: *const Arg) []const u8 {
     const base = argUsageStr(allocator, a);
-    if (!a.isMultiple()) return base;
+    if (!a.showsEllipsis()) return base;
     return std.fmt.allocPrint(allocator, "{s}...", .{base}) catch @panic("clap: OOM");
 }
 
@@ -194,6 +194,16 @@ pub fn argUsageStr(allocator: std.mem.Allocator, a: *const Arg) []const u8 {
         b.addByte(c);
     }
     if (a.takesValue()) {
+        if (a.value_names) |names| {
+            if (names.len > 1) {
+                for (names) |n| {
+                    b.add(" <");
+                    b.add(n);
+                    b.add(">");
+                }
+                return b.items();
+            }
+        }
         b.add(" <");
         b.add(a.value_name orelse a.id);
         b.add(">");

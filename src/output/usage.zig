@@ -33,7 +33,13 @@ fn body(allocator: std.mem.Allocator, cmd: *const Command, used: []const []const
     if (used.len == 0 and needsOptionsTag(cmd)) push(allocator, &parts, "[OPTIONS]");
     collectArgParts(allocator, cmd, used, &parts);
     if (include_subcommand and cmd.hasSubcommands()) {
-        push(allocator, &parts, if (cmd.subcommand_required) "<COMMAND>" else "[COMMAND]");
+        // Help usage lists `[COMMAND]`/`<COMMAND>`; smart (error) usage only
+        // shows the subcommand slot when one is required (clap's write_smart_usage).
+        if (used.len == 0) {
+            push(allocator, &parts, if (cmd.subcommand_required) "<COMMAND>" else "[COMMAND]");
+        } else if (cmd.subcommand_required) {
+            push(allocator, &parts, "<COMMAND>");
+        }
     }
 
     var b = Buf{ .allocator = allocator };
@@ -71,26 +77,38 @@ fn collectArgParts(allocator: std.mem.Allocator, cmd: *const Command, used: []co
         if (cmd.isGroupId(id)) continue;
         const a = cmd.findArgById(id) orelse continue;
         if (a.isPositional() or contains(members.items, a.id)) continue;
-        push(allocator, &opts, layout.argUsageStr(allocator, a));
+        // multiple-valued options carry a trailing `...` in usage (clap's stylized)
+        push(allocator, &opts, layout.conflictDisplay(allocator, a));
     }
 
     for (opts.items) |p| push(allocator, parts, p);
     for (groups.items) |p| push(allocator, parts, p);
-    appendPositionals(allocator, cmd, members.items, parts);
+    appendPositionals(allocator, cmd, members.items, used, parts);
 }
 
-fn appendPositionals(allocator: std.mem.Allocator, cmd: *const Command, members: []const []const u8, parts: *Parts) void {
+fn appendPositionals(allocator: std.mem.Allocator, cmd: *const Command, members: []const []const u8, used: []const []const u8, parts: *Parts) void {
     var i: usize = 1;
     while (cmd.getPositional(i)) |a| : (i += 1) {
         if (contains(members, a.id)) continue;
+        // A positional pulled into `used` (e.g. it was supplied and is named in a
+        // conflict's usage) is forced to the required `<NAME>` form, matching
+        // clap's `stylized(Some(true))` for incls.
+        const force_required = contains(used, a.id);
         if (a.last_flag) {
             // required last -> `-- <X>...`; optional last -> `[-- <X>...]`
             var b = Buf{ .allocator = allocator };
-            b.add(if (a.required_flag) "-- <" else "[-- <");
+            b.add(if (a.required_flag or force_required) "-- <" else "[-- <");
             b.add(a.value_name orelse a.id);
             b.add(">");
             if (a.isMultiple()) b.add("...");
-            if (!a.required_flag) b.add("]");
+            if (!(a.required_flag or force_required)) b.add("]");
+            push(allocator, parts, b.items());
+        } else if (force_required and !a.required_flag) {
+            var b = Buf{ .allocator = allocator };
+            b.add("<");
+            b.add(a.value_name orelse a.id);
+            b.add(">");
+            if (a.isMultiple()) b.add("...");
             push(allocator, parts, b.items());
         } else {
             push(allocator, parts, layout.positionalNotationStr(allocator, a));

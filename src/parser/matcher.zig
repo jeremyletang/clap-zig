@@ -74,12 +74,34 @@ pub const ArgMatches = struct {
         m.indices.append(self.allocator, index) catch @panic("clap: OOM matching");
     }
 
+    /// Seed multiple default values (only if the arg is otherwise absent),
+    /// indexed from `first_index`. Used by conditional defaults.
+    pub fn setDefaults(self: *ArgMatches, id: []const u8, vals: []const []const u8, first_index: usize) void {
+        if (self.map.contains(id)) return;
+        const m = self.getOrPut(id);
+        m.source = .default_value;
+        for (vals, 0..) |v, i| {
+            m.values.append(self.allocator, v) catch @panic("clap: OOM matching");
+            m.indices.append(self.allocator, first_index + i) catch @panic("clap: OOM matching");
+        }
+    }
+
     /// Clear a prior occurrence so it can be re-recorded (clap's `args_override_self`).
     pub fn reset(self: *ArgMatches, id: []const u8) void {
         if (self.map.getPtr(id)) |m| {
             m.values.clearRetainingCapacity();
             m.indices.clearRetainingCapacity();
             m.occurrences = 0;
+        }
+    }
+
+    /// Remove an argument's match entirely (clap's `matcher.remove`, used by
+    /// `overrides_with` to drop a superseded arg).
+    pub fn remove(self: *ArgMatches, id: []const u8) void {
+        if (self.map.fetchRemove(id)) |kv| {
+            var m = kv.value;
+            m.values.deinit(self.allocator);
+            m.indices.deinit(self.allocator);
         }
     }
 

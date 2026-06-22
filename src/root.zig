@@ -14,6 +14,7 @@ const usage = @import("output/usage.zig");
 
 pub const ArgAction = action.ArgAction;
 pub const Arg = arg.Arg;
+pub const RequireIf = arg.RequireIf;
 pub const ValueRange = range.ValueRange;
 pub const ParseResult = value_parser.ParseResult;
 pub const ParserFn = value_parser.ParserFn;

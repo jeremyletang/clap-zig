@@ -29,6 +29,10 @@ pub fn render(allocator: std.mem.Allocator, cmd: *const Command, long: bool) []c
 
 fn renderShort(allocator: std.mem.Allocator, cmd: *const Command) []const u8 {
     var b = Buf{ .allocator = allocator };
+    if (cmd.before_help_text) |t| {
+        b.add(t);
+        b.add("\n\n");
+    }
     if (cmd.about_text) |t| {
         b.add(t);
         b.add("\n\n");
@@ -38,12 +42,26 @@ fn renderShort(allocator: std.mem.Allocator, cmd: *const Command) []const u8 {
     if (hasListedSubcommands(cmd)) writeCommands(&b, cmd);
     if (hasPositionals(cmd)) writeArguments(&b, cmd);
     writeOptions(&b, cmd);
+    appendAfterHelp(&b, cmd.after_help_text);
     return b.items();
 }
 
-/// Whether the command has content that only appears in long help (per-value
-/// help on possible values), making `-h` and `--help` differ.
+/// Append free text after the help body, separated by a blank line (clap's
+/// `{after-help}`).
+fn appendAfterHelp(b: *Buf, text: ?[]const u8) void {
+    if (text) |t| {
+        b.addByte('\n');
+        b.add(t);
+        b.addByte('\n');
+    }
+}
+
+/// Whether `--help` should use the expanded next-line layout, i.e. there is
+/// content that only appears in long help: per-value help, a long about, or
+/// long before/after text.
 fn hasLongHelp(cmd: *const Command) bool {
+    if (cmd.long_about_text != null) return true;
+    if (cmd.before_long_help_text != null or cmd.after_long_help_text != null) return true;
     for (cmd.arg_list.items) |*a| {
         if (a.value_help != null) return true;
     }
@@ -56,7 +74,11 @@ const LongEntry = struct { term: []const u8, help: []const u8, pvs: ?[]const Pos
 
 fn renderLong(allocator: std.mem.Allocator, cmd: *const Command) []const u8 {
     var b = Buf{ .allocator = allocator };
-    if (cmd.about_text) |t| {
+    if (cmd.before_long_help_text orelse cmd.before_help_text) |t| {
+        b.add(t);
+        b.add("\n\n");
+    }
+    if (cmd.long_about_text orelse cmd.about_text) |t| {
         b.add(t);
         b.add("\n\n");
     }
@@ -72,6 +94,7 @@ fn renderLong(allocator: std.mem.Allocator, cmd: *const Command) []const u8 {
     }
     b.add("\nOptions:\n");
     longSection(&b, longOptions(allocator, cmd));
+    appendAfterHelp(&b, cmd.after_long_help_text orelse cmd.after_help_text);
     return b.items();
 }
 
@@ -239,6 +262,7 @@ fn collectPositionals(allocator: std.mem.Allocator, cmd: *const Command, entries
 fn writeOptions(b: *Buf, cmd: *const Command) void {
     var entries: std.ArrayListUnmanaged(Entry) = .empty;
     collectOptions(b.allocator, cmd, &entries);
+    if (entries.items.len == 0) return; // no Options section when empty (e.g. flags disabled)
     b.addByte('\n');
     b.add("Options:\n");
     layout.table(b, 2, entries.items);

@@ -13,5 +13,12 @@ test {
     _ = @import("clap_multiple_values_test.zig");
     _ = @import("clap_help_test.zig");
     _ = @import("clap_tests_test.zig");
+    _ = @import("clap_conflicts_test.zig");
+    _ = @import("clap_posix_test.zig");
+    _ = @import("clap_require_test.zig");
+    _ = @import("clap_required_unless_test.zig");
+    _ = @import("clap_required_if_test.zig");
+    _ = @import("clap_default_value_if_test.zig");
+    _ = @import("clap_help_layout_test.zig");
     _ = @import("coverage_test.zig");
 }

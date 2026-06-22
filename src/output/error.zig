@@ -80,8 +80,13 @@ fn appendMessage(b: *Buf, e: errors.Error) void {
         .argument_conflict => {
             if (e.multiple_use) {
                 b.print("the argument '{s}' cannot be used multiple times", .{arg});
-            } else if (e.value) |other| {
-                b.print("the argument '{s}' cannot be used with '{s}'", .{ arg, other });
+            } else if (e.conflicts) |others| {
+                if (others.len == 1) {
+                    b.print("the argument '{s}' cannot be used with '{s}'", .{ arg, others[0] });
+                } else {
+                    b.print("the argument '{s}' cannot be used with:", .{arg});
+                    for (others) |o| b.print("\n  {s}", .{o});
+                }
             } else {
                 b.print("the argument '{s}' cannot be used with a subcommand", .{arg});
             }

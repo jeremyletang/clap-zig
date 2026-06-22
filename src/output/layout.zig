@@ -71,6 +71,14 @@ pub fn positionalNotationStr(allocator: std.mem.Allocator, a: *const Arg) []cons
     return b.items();
 }
 
+/// How an argument is named in a conflict message: its flag/value form plus a
+/// trailing `...` when it accepts multiple (clap's Arg display in conflicts).
+pub fn conflictDisplay(allocator: std.mem.Allocator, a: *const Arg) []const u8 {
+    const base = argUsageStr(allocator, a);
+    if (!a.isMultiple()) return base;
+    return std.fmt.allocPrint(allocator, "{s}...", .{base}) catch @panic("clap: OOM");
+}
+
 /// How an argument is referred to in error messages: `<MODE>` / `[PORT]` for
 /// positionals, `--name <VAL>` / `-n <VAL>` for options/flags.
 pub fn argUsageStr(allocator: std.mem.Allocator, a: *const Arg) []const u8 {

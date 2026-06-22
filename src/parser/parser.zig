@@ -222,6 +222,7 @@ const Parser = struct {
                 // start a fresh occurrence; values are gathered by consumeOptValue
                 self.state = .{ .opt = id };
                 self.pending_count = 0;
+                if (self.cmd.findArgById(id)) |a| self.removeOverrides(a);
                 self.matches.startOccurrence(id, .command_line);
                 return .consumed;
             },
@@ -388,6 +389,7 @@ const Parser = struct {
     // ----- recording / defaults -----
 
     fn recordArg(self: *Parser, a: *const Arg, vals: []const []const u8, source: ValueSource) void {
+        if (source == .command_line) self.removeOverrides(a);
         self.matches.startOccurrence(a.id, source);
         if (vals.len == 0) {
             if (a.default_missing_value) |dm| {
@@ -406,6 +408,20 @@ const Parser = struct {
         for (vals) |v| self.pushVal(a.id, v);
     }
 
+    /// On a new explicit occurrence, drop any args this one overrides, plus any
+    /// already-matched arg that overrides this one (so the later of an override
+    /// pair wins). Port of clap's `Parser::remove_overrides`.
+    fn removeOverrides(self: *Parser, a: *const Arg) void {
+        if (a.overrides) |ov| {
+            for (ov) |oid| self.matches.remove(oid);
+        }
+        for (self.cmd.arg_list.items) |*b| {
+            if (!self.matches.contains(b.id)) continue;
+            const bov = b.overrides orelse continue;
+            if (idIn(bov, a.id)) self.matches.remove(b.id);
+        }
+    }
+
     /// Advance the parse-index and record one value at the new slot.
     fn pushVal(self: *Parser, id: []const u8, val: []const u8) void {
         self.cur_idx += 1;
@@ -413,11 +429,42 @@ const Parser = struct {
     }
 
     fn applyDefaults(self: *Parser) void {
-        for (self.cmd.arg_list.items) |*a| {
-            const dv = a.default_value orelse implicitDefault(a.action_val) orelse continue;
-            self.cur_idx += 1;
-            self.matches.setDefault(a.id, dv, self.cur_idx);
+        for (self.cmd.arg_list.items) |*a| self.applyArgDefault(a);
+    }
+
+    /// Conditional defaults take precedence over the regular default: the first
+    /// matching `default_value_if` wins and supplies (or, with no value,
+    /// suppresses) the default. Port of clap's `add_default_value`.
+    fn applyArgDefault(self: *Parser, a: *const Arg) void {
+        if (a.default_value_ifs) |conds| {
+            if (!self.matches.contains(a.id)) {
+                for (conds) |c| {
+                    if (!self.conditionHolds(c)) continue;
+                    if (c.value) |vals| {
+                        const first = self.cur_idx + 1;
+                        self.cur_idx += vals.len;
+                        self.matches.setDefaults(a.id, vals, first);
+                    }
+                    return; // first match wins; skip the regular default
+                }
+            }
         }
+        const dv = a.default_value orelse implicitDefault(a.action_val) orelse return;
+        self.cur_idx += 1;
+        self.matches.setDefault(a.id, dv, self.cur_idx);
+    }
+
+    /// Whether a conditional-default predicate holds: the referenced arg is
+    /// present (when `equals` is null) or holds the given value.
+    fn conditionHolds(self: *Parser, c: @import("../builder/arg.zig").DefaultValueIf) bool {
+        if (c.equals) |v| {
+            const vals = self.matches.getRaw(c.arg) orelse return false;
+            for (vals) |x| {
+                if (std.mem.eql(u8, x, v)) return true;
+            }
+            return false;
+        }
+        return self.matches.contains(c.arg);
     }
 
     /// SetTrue/SetFalse/Count carry an implicit default, so they are always present
@@ -441,6 +488,9 @@ const Parser = struct {
     /// `args_override_self` is set, in which case the prior occurrence is cleared.
     fn reuseError(self: *Parser, a: *const Arg) ?Error {
         if (a.isMultiple() or !self.matches.isPresent(a.id)) return null;
+        // A self-overriding arg supersedes its prior occurrence (cleared by
+        // `removeOverrides` on record), so it never errors on repeat.
+        if (selfOverrides(a)) return null;
         if (self.cmd.args_override_self) {
             self.matches.reset(a.id);
             return null;
@@ -461,6 +511,20 @@ const Parser = struct {
         if (a.long_name) |l| return self.dashed(l);
         if (a.short_char) |c| return self.shortDisplay(c);
         return a.id;
+    }
+
+    /// Whether `a` lists its own id in `overrides_with` (clap's self-override:
+    /// repeating it replaces the prior occurrence rather than erroring).
+    fn selfOverrides(a: *const Arg) bool {
+        const ov = a.overrides orelse return false;
+        return idIn(ov, a.id);
+    }
+
+    fn idIn(ids: []const []const u8, needle: []const u8) bool {
+        for (ids) |id| {
+            if (std.mem.eql(u8, id, needle)) return true;
+        }
+        return false;
     }
 
     /// Build the wrong/too-few/required-value error for a pending option that

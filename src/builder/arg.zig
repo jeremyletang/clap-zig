@@ -6,6 +6,24 @@ const possible_value = @import("possible_value.zig");
 
 const PossibleValue = possible_value.PossibleValue;
 
+/// A conditional requirement: when the owning arg holds `value`, `target` also
+/// becomes required. Mirrors the Equals-predicate entries of clap's `requires`
+/// (`requires_if` / `requires_ifs`).
+pub const RequireIf = struct {
+    value: []const u8,
+    target: []const u8,
+};
+
+/// A conditional default: when arg `arg` matches the predicate, the owning arg
+/// defaults to `value` (or, if `value` is null, gets no default at all). The
+/// predicate is "present" when `equals` is null, else "equals that string".
+/// Mirrors clap's `default_value_if(s)` / `default_values_if(s)`.
+pub const DefaultValueIf = struct {
+    arg: []const u8,
+    equals: ?[]const u8 = null,
+    value: ?[]const []const u8 = null,
+};
+
 // aliased because the `action` builder method below shadows the import inside the struct
 const ArgAction = action.ArgAction;
 
@@ -34,7 +52,15 @@ pub const Arg = struct {
     value_names: ?[]const []const u8 = null,
     group_id: ?[]const u8 = null,
     requires_id: ?[]const u8 = null,
-    conflicts_id: ?[]const u8 = null,
+    requires_ifs: ?[]const RequireIf = null,
+    required_unless_any: ?[]const []const u8 = null,
+    required_unless_all: ?[]const []const u8 = null,
+    required_if_eq_any: ?[]const RequireIf = null,
+    required_if_eq_all: ?[]const RequireIf = null,
+    default_value_ifs: ?[]const DefaultValueIf = null,
+    conflicts_with: ?[]const []const u8 = null,
+    overrides: ?[]const []const u8 = null,
+    is_exclusive: bool = false,
     is_global: bool = false,
 
     pub fn new(id: []const u8) Arg {
@@ -112,6 +138,15 @@ pub const Arg = struct {
         return a;
     }
 
+    /// Conditional defaults, evaluated in order: the first condition that matches
+    /// supplies this arg's default (or, with a null `value`, suppresses any
+    /// default). Covers clap's `default_value_if(s)` / `default_values_if(s)`.
+    pub fn defaultValueIfs(self: Arg, items: []const DefaultValueIf) Arg {
+        var a = self;
+        a.default_value_ifs = items;
+        return a;
+    }
+
     /// Restrict the accepted values to an enumerated set (clap's
     /// `value_parser([..])` / `PossibleValuesParser`).
     pub fn valueParser(self: Arg, values: []const []const u8) Arg {
@@ -160,11 +195,67 @@ pub const Arg = struct {
         return a;
     }
 
-    /// This argument cannot be used together with the named one. (Stored;
-    /// mutual-exclusion validation is part of the wider arg-relations work.)
-    pub fn conflictsWith(self: Arg, id: []const u8) Arg {
+    /// Require each `target` only when this arg holds the paired `value`
+    /// (clap's `requires_if` / `requires_ifs`).
+    pub fn requiresIfs(self: Arg, items: []const RequireIf) Arg {
         var a = self;
-        a.conflicts_id = id;
+        a.requires_ifs = items;
+        return a;
+    }
+
+    /// This arg is required unless ANY of the named args is present (clap's
+    /// `required_unless_present` / `required_unless_present_any`).
+    pub fn requiredUnlessPresentAny(self: Arg, ids: []const []const u8) Arg {
+        var a = self;
+        a.required_unless_any = ids;
+        return a;
+    }
+
+    /// This arg is required unless ALL of the named args are present (clap's
+    /// `required_unless_present_all`).
+    pub fn requiredUnlessPresentAll(self: Arg, ids: []const []const u8) Arg {
+        var a = self;
+        a.required_unless_all = ids;
+        return a;
+    }
+
+    /// This arg is required if ANY pair matches — i.e. some arg `target` holds
+    /// the paired `value` (clap's `required_if_eq` / `required_if_eq_any`).
+    pub fn requiredIfEqAny(self: Arg, items: []const RequireIf) Arg {
+        var a = self;
+        a.required_if_eq_any = items;
+        return a;
+    }
+
+    /// This arg is required only if ALL pairs match — every arg `target` holds
+    /// its paired `value` (clap's `required_if_eq_all`).
+    pub fn requiredIfEqAll(self: Arg, items: []const RequireIf) Arg {
+        var a = self;
+        a.required_if_eq_all = items;
+        return a;
+    }
+
+    /// This argument cannot be used together with any of the named ones
+    /// (clap's `conflicts_with` / `conflicts_with_all`). Symmetric.
+    pub fn conflictsWith(self: Arg, ids: []const []const u8) Arg {
+        var a = self;
+        a.conflicts_with = ids;
+        return a;
+    }
+
+    /// Each named argument (and this one against itself, for self-override) is
+    /// superseded by whichever of the overriding pair appears last on the command
+    /// line (clap's `overrides_with` / `overrides_with_all`).
+    pub fn overridesWith(self: Arg, ids: []const []const u8) Arg {
+        var a = self;
+        a.overrides = ids;
+        return a;
+    }
+
+    /// This argument conflicts with every other argument (clap's `exclusive`).
+    pub fn exclusive(self: Arg, yes: bool) Arg {
+        var a = self;
+        a.is_exclusive = yes;
         return a;
     }
 

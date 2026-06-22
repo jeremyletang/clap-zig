@@ -53,6 +53,8 @@ pub const Error = struct {
     help_long: bool = false,
     /// for `argument_conflict`: the "cannot be used multiple times" variant
     multiple_use: bool = false,
+    /// for `argument_conflict`: the other args this one conflicts with (display strings)
+    conflicts: ?[]const []const u8 = null,
     /// for `invalid_value`: the "a value is required ... but none was supplied" variant
     value_required: bool = false,
     /// for `wrong_number_of_values` / `too_few_values`: expected vs provided counts

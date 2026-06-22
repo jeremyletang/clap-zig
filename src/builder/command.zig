@@ -21,6 +21,11 @@ pub const Command = struct {
     version_str: ?[]const u8 = null,
     author_text: ?[]const u8 = null,
     help_template_text: ?[]const u8 = null,
+    before_help_text: ?[]const u8 = null,
+    after_help_text: ?[]const u8 = null,
+    before_long_help_text: ?[]const u8 = null,
+    after_long_help_text: ?[]const u8 = null,
+    long_about_text: ?[]const u8 = null,
     arg_list: std.ArrayListUnmanaged(Arg) = .empty,
     subcommands: std.ArrayListUnmanaged(Command) = .empty,
     groups: std.ArrayListUnmanaged(ArgGroup) = .empty,
@@ -51,6 +56,41 @@ pub const Command = struct {
     pub fn about(self: Command, text: []const u8) Command {
         var c = self;
         c.about_text = text;
+        return c;
+    }
+
+    /// Longer "about" shown only in `--help` (clap's `long_about`).
+    pub fn longAbout(self: Command, text: []const u8) Command {
+        var c = self;
+        c.long_about_text = text;
+        return c;
+    }
+
+    /// Free text printed before everything else in the help output.
+    pub fn beforeHelp(self: Command, text: []const u8) Command {
+        var c = self;
+        c.before_help_text = text;
+        return c;
+    }
+
+    /// Free text printed after everything else in the help output.
+    pub fn afterHelp(self: Command, text: []const u8) Command {
+        var c = self;
+        c.after_help_text = text;
+        return c;
+    }
+
+    /// `before_help` override used only in `--help` (long) output.
+    pub fn beforeLongHelp(self: Command, text: []const u8) Command {
+        var c = self;
+        c.before_long_help_text = text;
+        return c;
+    }
+
+    /// `after_help` override used only in `--help` (long) output.
+    pub fn afterLongHelp(self: Command, text: []const u8) Command {
+        var c = self;
+        c.after_long_help_text = text;
         return c;
     }
 
@@ -148,6 +188,20 @@ pub const Command = struct {
     pub fn argsOverrideSelf(self: Command, yes: bool) Command {
         var c = self;
         c.args_override_self = yes;
+        return c;
+    }
+
+    /// Suppress the automatic `-h/--help` flag (clap's `disable_help_flag`).
+    pub fn disableHelpFlag(self: Command, yes: bool) Command {
+        var c = self;
+        c.disable_help_flag = yes;
+        return c;
+    }
+
+    /// Suppress the automatic `-V/--version` flag (clap's `disable_version_flag`).
+    pub fn disableVersionFlag(self: Command, yes: bool) Command {
+        var c = self;
+        c.disable_version_flag = yes;
         return c;
     }
 
@@ -302,8 +356,8 @@ test "command: builds tree and assigns positional indices" {
             .about("Clones repos")
             .arg(Arg.fromUsage("<REMOTE>", "The remote to clone")))
         .subcommand(Command.init(a, "diff")
-            .arg(Arg.fromUsage("base: [COMMIT]", null))
-            .arg(Arg.fromUsage("head: [COMMIT]", null)));
+        .arg(Arg.fromUsage("base: [COMMIT]", null))
+        .arg(Arg.fromUsage("head: [COMMIT]", null)));
 
     try testing.expect(cmd.subcommand_required);
     try testing.expectEqualStrings("A fictional versioning CLI", cmd.about_text.?);

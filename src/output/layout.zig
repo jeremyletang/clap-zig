@@ -59,43 +59,60 @@ pub fn table(buf: *Buf, indent: usize, entries: []const Entry, term_width: ?usiz
     }
 }
 
-/// Word-wrap `help` to `term_width - offset` columns, prefixing continuation
-/// lines with `offset` spaces; honors explicit newlines as hard breaks. No
-/// wrapping when `term_width` is null or <= offset. Port of clap's textwrap.
+/// Word-wrap `help` to `term_width - offset` columns. Greedy word wrap that
+/// preserves the original inter-word whitespace (only the gap at a break point is
+/// replaced by the newline + indent), honors explicit newlines as hard breaks,
+/// and re-applies each source line's own leading indentation to its wrapped
+/// continuations. No wrapping when `term_width` is null or <= offset. Port of
+/// clap's textwrap.
 fn wrapHelp(allocator: std.mem.Allocator, help: []const u8, term_width: ?usize, offset: usize) []const u8 {
     const tw = term_width orelse return help;
     if (tw == 0 or tw <= offset or help.len == 0) return help;
     const avail = tw - offset;
 
     var out: std.ArrayListUnmanaged(u8) = .empty;
-    var col: usize = 0; // columns used on the current output line
-    var first_word = true;
-    var lines = std.mem.splitScalar(u8, help, '\n');
+    var lines = std.mem.splitScalar(u8, std.mem.trimEnd(u8, help, " \n"), '\n');
     var first_line = true;
     while (lines.next()) |line| {
-        if (!first_line) {
-            newlineIndent(allocator, &out, offset);
-            col = 0;
-            first_word = true;
-        }
+        if (!first_line) newlineIndent(allocator, &out, offset);
         first_line = false;
-        var words = std.mem.tokenizeScalar(u8, line, ' ');
-        while (words.next()) |word| {
-            if (!first_word and col + 1 + word.len > avail) {
-                newlineIndent(allocator, &out, offset);
-                col = 0;
-                first_word = true;
-            }
-            if (!first_word) {
-                out.append(allocator, ' ') catch oom();
-                col += 1;
-            }
-            out.appendSlice(allocator, word) catch oom();
-            col += word.len;
-            first_word = false;
-        }
+        wrapLine(allocator, &out, line, avail, offset);
     }
     return out.items;
+}
+
+/// Wrap one source line; its leading whitespace becomes the continuation indent
+/// (added on top of `offset`).
+fn wrapLine(allocator: std.mem.Allocator, out: *std.ArrayListUnmanaged(u8), line: []const u8, avail: usize, offset: usize) void {
+    var lead: usize = 0;
+    while (lead < line.len and line[lead] == ' ') lead += 1;
+    out.appendSlice(allocator, line[0..lead]) catch oom();
+    var col = lead; // columns used in the help area (relative to `offset`)
+    var i = lead;
+    var first_word = true;
+    while (i < line.len) {
+        const g = i;
+        while (i < line.len and line[i] == ' ') i += 1;
+        const gap = line[g..i];
+        const w = i;
+        while (i < line.len and line[i] != ' ') i += 1;
+        const word = line[w..i];
+        if (word.len == 0) break; // trailing spaces
+        if (first_word) {
+            out.appendSlice(allocator, word) catch oom();
+            col += word.len;
+        } else if (col + gap.len + word.len > avail) {
+            newlineIndent(allocator, out, offset + lead);
+            col = lead;
+            out.appendSlice(allocator, word) catch oom();
+            col += word.len;
+        } else {
+            out.appendSlice(allocator, gap) catch oom();
+            out.appendSlice(allocator, word) catch oom();
+            col += gap.len + word.len;
+        }
+        first_word = false;
+    }
 }
 
 fn newlineIndent(allocator: std.mem.Allocator, out: *std.ArrayListUnmanaged(u8), offset: usize) void {

@@ -90,3 +90,53 @@ test "no_wrap_default_help" {
         helpText(a, &cmd, &.{"--help"}),
     );
 }
+
+test "wrapping_newline_chars" {
+    var arena = std.heap.ArenaAllocator.init(testing.allocator);
+    defer arena.deinit();
+    const a = arena.allocator();
+    var cmd = Command.init(a, "ctest").version("0.1").termWidth(60)
+        .arg(Arg.new("mode").help(
+        "x, max, maximum   20 characters, contains symbols.\n" ++
+            "l, long           Copy-friendly, 14 characters, contains symbols.\n" ++
+            "m, med, medium    Copy-friendly, 8 characters, contains symbols.\n",
+    ));
+    try testing.expectEqualStrings(
+        "Usage: ctest [mode]\n\n" ++
+            "Arguments:\n" ++
+            "  [mode]  x, max, maximum   20 characters, contains symbols.\n" ++
+            "          l, long           Copy-friendly, 14 characters,\n" ++
+            "          contains symbols.\n" ++
+            "          m, med, medium    Copy-friendly, 8 characters,\n" ++
+            "          contains symbols.\n\n" ++
+            "Options:\n" ++
+            "  -h, --help     Print help\n" ++
+            "  -V, --version  Print version\n",
+        helpText(a, &cmd, &.{"--help"}),
+    );
+}
+
+test "wrapped_indentation" {
+    var arena = std.heap.ArenaAllocator.init(testing.allocator);
+    defer arena.deinit();
+    const a = arena.allocator();
+    var cmd = Command.init(a, "ctest").version("0.1").termWidth(60)
+        .arg(Arg.new("mode").help(
+        "Some values:\n" ++
+            "  - l, long           Copy-friendly, 14 characters, contains symbols.\n" ++
+            "  - m, med, medium    Copy-friendly, 8 characters, contains symbols.",
+    ));
+    try testing.expectEqualStrings(
+        "Usage: ctest [mode]\n\n" ++
+            "Arguments:\n" ++
+            "  [mode]  Some values:\n" ++
+            "            - l, long           Copy-friendly, 14\n" ++
+            "            characters, contains symbols.\n" ++
+            "            - m, med, medium    Copy-friendly, 8 characters,\n" ++
+            "            contains symbols.\n\n" ++
+            "Options:\n" ++
+            "  -h, --help     Print help\n" ++
+            "  -V, --version  Print version\n",
+        helpText(a, &cmd, &.{"--help"}),
+    );
+}

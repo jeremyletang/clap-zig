@@ -86,7 +86,7 @@ pub const entries = [_]Entry{
     .{ .file = "help.rs", .name = "no_wrap_default_help", .status = .ported },
     .{ .file = "help.rs", .name = "wrapped_help", .status = .ported },
     .{ .file = "help.rs", .name = "unwrapped_help", .status = .ported },
-    .{ .file = "help.rs", .name = "final_word_wrapping", .status = .deferred, .note = "auto next_line_help (term too narrow)" },
+    .{ .file = "help.rs", .name = "final_word_wrapping", .status = .ported },
     .{ .file = "help.rs", .name = "wrapping_newline_chars", .status = .ported },
     .{ .file = "help.rs", .name = "wrapped_indentation", .status = .ported },
     .{ .file = "help.rs", .name = "possible_value_wrapped_help", .status = .deferred, .note = "long-help possible-value wrapping" },

@@ -91,6 +91,24 @@ test "no_wrap_default_help" {
     );
 }
 
+test "final_word_wrapping" {
+    // At width 24 the term column is too wide, so the whole section drops to the
+    // next-line layout (auto next_line_help).
+    var arena = std.heap.ArenaAllocator.init(testing.allocator);
+    defer arena.deinit();
+    const a = arena.allocator();
+    var cmd = Command.init(a, "ctest").version("0.1").termWidth(24);
+    try testing.expectEqualStrings(
+        "Usage: ctest\n\n" ++
+            "Options:\n" ++
+            "  -h, --help\n" ++
+            "          Print help\n" ++
+            "  -V, --version\n" ++
+            "          Print version\n",
+        helpText(a, &cmd, &.{"--help"}),
+    );
+}
+
 test "wrapping_newline_chars" {
     var arena = std.heap.ArenaAllocator.init(testing.allocator);
     defer arena.deinit();

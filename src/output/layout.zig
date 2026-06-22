@@ -49,12 +49,43 @@ pub const Entry = struct { term: []const u8, help: []const u8 };
 pub fn table(buf: *Buf, indent: usize, entries: []const Entry, term_width: ?usize) void {
     var width: usize = 0;
     for (entries) |e| width = @max(width, e.term.len);
+    if (term_width) |tw| {
+        if (willWrapNextLine(entries, width, tw)) return tableNextLine(buf, indent, entries, tw);
+    }
     const offset = indent + width + 2; // where the help column starts
     for (entries) |e| {
         buf.spaces(indent);
         buf.add(e.term);
         buf.spaces(width - e.term.len + 2);
         buf.add(wrapHelp(buf.allocator, e.help, term_width, offset));
+        buf.addByte('\n');
+    }
+}
+
+/// clap's `will_args_wrap`: when the term column would take >40% of the width and
+/// some help would not fit beside it, the whole section drops to a next-line
+/// layout (term on its own line, help indented beneath).
+fn willWrapNextLine(entries: []const Entry, width: usize, tw: usize) bool {
+    const taken = width + 4; // longest term + TAB_WIDTH*2
+    if (tw < taken or taken * 100 <= tw * 40) return false;
+    const avail = tw - taken;
+    for (entries) |e| {
+        if (e.help.len > avail) return true;
+    }
+    return false;
+}
+
+/// Next-line layout: `indent` + term, then help wrapped under a fixed 10-column
+/// indent (TAB + NEXT_LINE_INDENT). No blank line between entries (that only
+/// happens in `--help` long mode).
+fn tableNextLine(buf: *Buf, indent: usize, entries: []const Entry, tw: usize) void {
+    const help_indent = indent + 8;
+    for (entries) |e| {
+        buf.spaces(indent);
+        buf.add(e.term);
+        buf.addByte('\n');
+        buf.spaces(help_indent);
+        buf.add(wrapHelp(buf.allocator, e.help, tw, help_indent));
         buf.addByte('\n');
     }
 }

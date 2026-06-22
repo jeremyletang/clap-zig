@@ -1,13 +1,17 @@
 const std = @import("std");
 const arg = @import("../builder/arg.zig");
 const command = @import("../builder/command.zig");
+const style = @import("style.zig");
 
 const Arg = arg.Arg;
 const Command = command.Command;
 
 /// Small append-only string builder for help/usage/error rendering. Allocates
 /// from the supplied (arena) allocator and panics on failure, matching the rest
-/// of the builder; output is produced once, just before exit.
+/// of the builder; output is produced once, just before exit. The role methods
+/// wrap their text in ANSI escapes when a render is styling (see
+/// `style.setActive`); otherwise they append plain text, so output is
+/// byte-identical to the unstyled path.
 pub const Buf = struct {
     allocator: std.mem.Allocator,
     list: std.ArrayListUnmanaged(u8) = .empty,
@@ -29,10 +33,34 @@ pub const Buf = struct {
         self.add(s);
     }
 
+    /// Append `s` styled for `role` (plain when no render is styling).
+    pub fn role(self: *Buf, r: style.Role, s: []const u8) void {
+        self.add(style.applyActive(self.allocator, r, s));
+    }
+
     pub fn items(self: *const Buf) []const u8 {
         return self.list.items;
     }
 };
+
+/// Display width of `s` in columns, skipping ANSI SGR escape sequences
+/// (`\x1b[ … m`). Equals `s.len` when there are no escapes, so plain layout math
+/// is unchanged.
+pub fn displayWidth(s: []const u8) usize {
+    var w: usize = 0;
+    var i: usize = 0;
+    while (i < s.len) {
+        if (s[i] == 0x1b and i + 1 < s.len and s[i + 1] == '[') {
+            i += 2;
+            while (i < s.len and s[i] != 'm') i += 1;
+            if (i < s.len) i += 1; // consume the 'm'
+            continue;
+        }
+        w += 1;
+        i += 1;
+    }
+    return w;
+}
 
 fn oom() noreturn {
     @panic("clap: OOM rendering output");
@@ -48,7 +76,7 @@ pub const Entry = struct { term: []const u8, help: []const u8 };
 /// lines aligned under the help column.
 pub fn table(buf: *Buf, indent: usize, entries: []const Entry, term_width: ?usize) void {
     var width: usize = 0;
-    for (entries) |e| width = @max(width, e.term.len);
+    for (entries) |e| width = @max(width, displayWidth(e.term));
     if (term_width) |tw| {
         if (willWrapNextLine(entries, width, tw)) return tableNextLine(buf, indent, entries, tw);
     }
@@ -56,7 +84,7 @@ pub fn table(buf: *Buf, indent: usize, entries: []const Entry, term_width: ?usiz
     for (entries) |e| {
         buf.spaces(indent);
         buf.add(e.term);
-        buf.spaces(width - e.term.len + 2);
+        buf.spaces(width - displayWidth(e.term) + 2);
         buf.add(wrapHelp(buf.allocator, e.help, term_width, offset));
         buf.addByte('\n');
     }
@@ -70,7 +98,7 @@ fn willWrapNextLine(entries: []const Entry, width: usize, tw: usize) bool {
     if (tw < taken or taken * 100 <= tw * 40) return false;
     const avail = tw - taken;
     for (entries) |e| {
-        if (e.help.len > avail) return true;
+        if (displayWidth(e.help) > avail) return true;
     }
     return false;
 }
@@ -187,11 +215,9 @@ pub fn argUsageStr(allocator: std.mem.Allocator, a: *const Arg) []const u8 {
     if (a.isPositional()) return positionalNotationStr(allocator, a);
     var b = Buf{ .allocator = allocator };
     if (a.long_name) |l| {
-        b.add("--");
-        b.add(l);
+        b.role(.literal, std.fmt.allocPrint(allocator, "--{s}", .{l}) catch oom());
     } else if (a.short_char) |c| {
-        b.addByte('-');
-        b.addByte(c);
+        b.role(.literal, std.fmt.allocPrint(allocator, "-{c}", .{c}) catch oom());
     }
     if (a.takesValue()) {
         if (a.value_names) |names| {

@@ -11,15 +11,22 @@ const Parts = std.ArrayListUnmanaged([]const u8);
 /// The help usage line, e.g. "Usage: git diff [OPTIONS] [COMMIT] [COMMIT] [-- <PATH>]".
 /// Port of https://github.com/clap-rs/clap/blob/master/clap_builder/src/output/usage.rs
 pub fn render(allocator: std.mem.Allocator, cmd: *const Command) []const u8 {
-    return std.fmt.allocPrint(allocator, "Usage: {s}", .{body(allocator, cmd, &.{}, true)}) catch
-        @panic("clap: OOM rendering output");
+    return withHeading(allocator, body(allocator, cmd, &.{}, true));
 }
 
 /// Contextual ("smart") usage for an error: `used` is the set of present + missing
 /// ids; when non-empty, clap drops the `[OPTIONS]` tag and unrolls the required graph.
 pub fn errorUsage(allocator: std.mem.Allocator, cmd: *const Command, used: []const []const u8) []const u8 {
-    return std.fmt.allocPrint(allocator, "Usage: {s}", .{body(allocator, cmd, used, true)}) catch
-        @panic("clap: OOM rendering output");
+    return withHeading(allocator, body(allocator, cmd, used, true));
+}
+
+/// Prefix a usage body with the styled `Usage:` heading.
+fn withHeading(allocator: std.mem.Allocator, usage_body: []const u8) []const u8 {
+    var b = Buf{ .allocator = allocator };
+    b.role(.usage, "Usage:");
+    b.addByte(' ');
+    b.add(usage_body);
+    return b.items();
 }
 
 /// The usage body (binary name + args), without the "Usage: " prefix. Used by the
@@ -43,7 +50,7 @@ fn body(allocator: std.mem.Allocator, cmd: *const Command, used: []const []const
     }
 
     var b = Buf{ .allocator = allocator };
-    b.add(cmd.displayName());
+    b.role(.literal, cmd.displayName());
     for (parts.items) |p| {
         b.addByte(' ');
         b.add(p);

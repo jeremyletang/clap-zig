@@ -17,6 +17,9 @@ pub const Entry = struct {
 };
 
 pub const entries = [_]Entry{
+    // ----- app_settings.rs (colour) -----
+    .{ .file = "app_settings.rs", .name = "color_is_global", .status = .ported },
+
     // ----- derive_order.rs / display_order.rs (display_order / next_display_order) -----
     .{ .file = "derive_order.rs", .name = "no_derive_order", .status = .ported },
     .{ .file = "derive_order.rs", .name = "derive_order", .status = .ported },

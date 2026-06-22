@@ -32,7 +32,8 @@ pub fn render(allocator: std.mem.Allocator, e: errors.Error) []const u8 {
         else => {},
     }
     var b = Buf{ .allocator = allocator };
-    b.add("error: ");
+    b.role(.err, "error:");
+    b.addByte(' ');
     appendMessage(&b, e);
     b.addByte('\n');
     if (usesUsage(e.kind)) {

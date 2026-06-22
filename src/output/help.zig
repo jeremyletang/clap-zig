@@ -146,7 +146,7 @@ fn hasLongHelp(cmd: *const Command) bool {
     for (cmd.arg_list.items) |*a| {
         if (a.is_hidden) continue;
         // anything that differs between -h and --help forces the long layout
-        if (a.value_help != null or a.hide_short_help or a.hide_long_help) return true;
+        if (a.value_help != null or a.long_help_str != null or a.hide_short_help or a.hide_long_help) return true;
     }
     return false;
 }
@@ -169,19 +169,19 @@ fn renderLong(allocator: std.mem.Allocator, cmd: *const Command) []const u8 {
     b.addByte('\n');
     if (hasListedSubcommands(cmd)) {
         b.add("\nCommands:\n");
-        longSection(&b, longCommands(allocator, cmd));
+        longSection(&b, longCommands(allocator, cmd), cmd.term_width);
     }
     if (hasPositionals(cmd)) {
         b.add("\nArguments:\n");
-        longSection(&b, longArguments(allocator, cmd));
+        longSection(&b, longArguments(allocator, cmd), cmd.term_width);
     }
     b.add("\nOptions:\n");
-    longSection(&b, longOptions(allocator, cmd));
+    longSection(&b, longOptions(allocator, cmd), cmd.term_width);
     appendAfterHelp(&b, cmd.after_long_help_text orelse cmd.after_help_text);
     return b.items();
 }
 
-fn longSection(b: *Buf, entries: []const LongEntry) void {
+fn longSection(b: *Buf, entries: []const LongEntry, term_width: ?usize) void {
     for (entries, 0..) |e, i| {
         if (i != 0) b.addByte('\n'); // blank line between entries
         b.add("  ");
@@ -189,7 +189,7 @@ fn longSection(b: *Buf, entries: []const LongEntry) void {
         b.addByte('\n');
         if (e.help.len != 0) {
             b.add("          ");
-            b.add(e.help);
+            b.add(layout.wrapHelp(b.allocator, e.help, term_width, 10));
             b.addByte('\n');
         }
         if (e.pvs) |pvs| {
@@ -226,7 +226,7 @@ fn longArguments(allocator: std.mem.Allocator, cmd: *const Command) []const Long
         if (!a.shownIn(true)) continue;
         entries.append(allocator, .{
             .term = layout.positionalNotationStr(allocator, a),
-            .help = a.help_str orelse "",
+            .help = a.helpFor(true) orelse "",
             .pvs = a.value_help,
         }) catch oom();
     }
@@ -239,7 +239,7 @@ fn longOptions(allocator: std.mem.Allocator, cmd: *const Command) []const LongEn
         if (a.isPositional() or !a.shownIn(true)) continue;
         entries.append(allocator, .{
             .term = optionTerm(allocator, a),
-            .help = a.help_str orelse "",
+            .help = a.helpFor(true) orelse "",
             .pvs = a.value_help,
         }) catch oom();
     }
@@ -599,7 +599,7 @@ fn appendValueNotation(b: *Buf, a: *const Arg) void {
 
 fn argHelp(allocator: std.mem.Allocator, a: *const Arg) []const u8 {
     var b = Buf{ .allocator = allocator };
-    if (a.help_str) |h| b.add(h);
+    if (a.helpFor(false)) |h| b.add(h);
     if (a.default_value) |d| {
         sep(&b);
         b.add("[default: ");

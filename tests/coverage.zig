@@ -76,6 +76,7 @@ pub const entries = [_]Entry{
     .{ .file = "help.rs", .name = "show_short_about_issue_897", .status = .ported },
     .{ .file = "help.rs", .name = "prefer_about_over_long_about_in_subcommands_list", .status = .ported },
     .{ .file = "help.rs", .name = "after_help_no_args", .status = .ported },
+    .{ .file = "help.rs", .name = "issue_1642_long_help_spacing", .status = .ported },
     .{ .file = "help.rs", .name = "short_with_value", .status = .ported },
     .{ .file = "help.rs", .name = "short_with_count", .status = .ported },
     .{ .file = "help.rs", .name = "custom_heading_pos", .status = .ported },

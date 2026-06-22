@@ -63,12 +63,19 @@ pub fn table(buf: *Buf, indent: usize, entries: []const Entry, term_width: ?usiz
 /// preserves the original inter-word whitespace (only the gap at a break point is
 /// replaced by the newline + indent), honors explicit newlines as hard breaks,
 /// and re-applies each source line's own leading indentation to its wrapped
-/// continuations. No wrapping when `term_width` is null or <= offset. Port of
+/// continuations. With no `term_width` (or 0/too-narrow) there is no wrapping,
+/// but explicit newlines are still re-indented under the help column. Port of
 /// clap's textwrap.
-fn wrapHelp(allocator: std.mem.Allocator, help: []const u8, term_width: ?usize, offset: usize) []const u8 {
-    const tw = term_width orelse return help;
-    if (tw == 0 or tw <= offset or help.len == 0) return help;
-    const avail = tw - offset;
+pub fn wrapHelp(allocator: std.mem.Allocator, help: []const u8, term_width: ?usize, offset: usize) []const u8 {
+    if (help.len == 0) return help;
+    const avail: usize = blk: {
+        if (term_width) |tw| {
+            if (tw != 0 and tw > offset) break :blk tw - offset;
+        }
+        break :blk std.math.maxInt(usize);
+    };
+    // fast path: single line with no wrapping needed
+    if (avail == std.math.maxInt(usize) and std.mem.indexOfScalar(u8, help, '\n') == null) return help;
 
     var out: std.ArrayListUnmanaged(u8) = .empty;
     var lines = std.mem.splitScalar(u8, std.mem.trimEnd(u8, help, " \n"), '\n');

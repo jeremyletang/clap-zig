@@ -35,6 +35,7 @@ pub const Arg = struct {
     id: []const u8 = "",
     short_char: ?u8 = null,
     long_name: ?[]const u8 = null,
+    long_help_str: ?[]const u8 = null,
     aliases_list: ?[]const []const u8 = null,
     visible_aliases_list: ?[]const []const u8 = null,
     short_aliases_list: ?[]const u8 = null,
@@ -157,6 +158,20 @@ pub const Arg = struct {
         var a = self;
         a.help_str = text;
         return a;
+    }
+
+    /// Longer help shown only in `--help` (clap's `long_help`).
+    pub fn longHelp(self: Arg, text: []const u8) Arg {
+        var a = self;
+        a.long_help_str = text;
+        return a;
+    }
+
+    /// The help text for the given mode: `--help` prefers long help, `-h` prefers
+    /// short help, each falling back to the other (clap's about selection).
+    pub fn helpFor(self: *const Arg, for_long: bool) ?[]const u8 {
+        if (for_long) return self.long_help_str orelse self.help_str;
+        return self.help_str orelse self.long_help_str;
     }
 
     pub fn valueName(self: Arg, name: []const u8) Arg {

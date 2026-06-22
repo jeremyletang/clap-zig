@@ -17,6 +17,13 @@ pub const Entry = struct {
 };
 
 pub const entries = [_]Entry{
+    // ----- derive_order.rs / display_order.rs (display_order / next_display_order) -----
+    .{ .file = "derive_order.rs", .name = "no_derive_order", .status = .ported },
+    .{ .file = "derive_order.rs", .name = "derive_order", .status = .ported },
+    .{ .file = "derive_order.rs", .name = "derive_order_next_order", .status = .ported },
+    .{ .file = "derive_order.rs", .name = "derive_order_no_next_order", .status = .ported },
+    .{ .file = "display_order.rs", .name = "very_large_display_order", .status = .ported },
+
     // ----- hidden_args.rs (hide on args / positionals / subcommands) -----
     .{ .file = "hidden_args.rs", .name = "hide_args", .status = .ported },
     .{ .file = "hidden_args.rs", .name = "hide_pos_args", .status = .ported },

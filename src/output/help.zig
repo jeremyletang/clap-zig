@@ -326,18 +326,81 @@ fn subcommandHelp(allocator: std.mem.Allocator, sc: *const Command) []const u8 {
     return b.items();
 }
 
-fn writeCommands(b: *Buf, cmd: *const Command) void {
-    var entries: std.ArrayListUnmanaged(Entry) = .empty;
+// ----- display-order sorting -----
+
+/// A table row tagged with its sort position: `(display_order, secondary key)`
+/// per clap's `option_sort_key`. Equal orders fall back to the key.
+const SortRow = struct { ord: usize, key: []const u8, entry: Entry };
+
+fn lessRow(_: void, a: SortRow, b: SortRow) bool {
+    if (a.ord != b.ord) return a.ord < b.ord;
+    return std.mem.lessThan(u8, a.key, b.key);
+}
+
+fn sortedEntries(allocator: std.mem.Allocator, rows: []SortRow) []Entry {
+    std.sort.insertion(SortRow, rows, {}, lessRow);
+    var out: std.ArrayListUnmanaged(Entry) = .empty;
+    for (rows) |r| out.append(allocator, r.entry) catch oom();
+    return out.items;
+}
+
+/// clap's `option_sort_key`: short flags first (lowercase before its uppercase),
+/// then by long name, then unflagged args by id.
+fn optionSortKey(allocator: std.mem.Allocator, a: *const Arg) []const u8 {
+    if (a.short_char) |s| {
+        return std.fmt.allocPrint(allocator, "{c}{c}", .{ std.ascii.toLower(s), if (std.ascii.isUpper(s)) @as(u8, '1') else '0' }) catch oom();
+    }
+    if (a.long_name) |l| return l;
+    return std.fmt.allocPrint(allocator, "{{{s}", .{a.id}) catch oom();
+}
+
+fn argOrd(a: *const Arg) usize {
+    return a.disp_ord orelse 999;
+}
+
+/// The order assigned to the synthetic `-V/--version` flag (one past help).
+fn versionOrd(cmd: *const Command) usize {
+    if (cmd.current_disp_ord) |c| return c + 1;
+    return 999;
+}
+
+/// Sorted option rows for the default `Options:` section: visible unheaded
+/// options plus the auto help/version flags, ordered by display order.
+fn sortedOptionEntries(allocator: std.mem.Allocator, cmd: *const Command, include_headed: bool) []Entry {
+    var rows: std.ArrayListUnmanaged(SortRow) = .empty;
+    for (cmd.arg_list.items) |*a| {
+        if (a.isPositional() or a.is_hidden) continue;
+        if (!include_headed and a.help_heading != null) continue;
+        rows.append(allocator, .{ .ord = argOrd(a), .key = optionSortKey(allocator, a), .entry = .{ .term = optionTerm(allocator, a), .help = argHelp(allocator, a) } }) catch oom();
+    }
+    if (!cmd.disable_help_flag) {
+        const ht = if (hasLongHelp(cmd)) "Print help (see more with '--help')" else help_flag_help;
+        rows.append(allocator, .{ .ord = cmd.builtinOrder(), .key = "h0", .entry = .{ .term = "-h, --help", .help = ht } }) catch oom();
+    }
+    if (cmd.hasVersionFlag()) {
+        rows.append(allocator, .{ .ord = versionOrd(cmd), .key = "v1", .entry = .{ .term = "-V, --version", .help = "Print version" } }) catch oom();
+    }
+    return sortedEntries(allocator, rows.items);
+}
+
+/// Sorted subcommand rows (visible subcommands + the auto `help` entry).
+fn sortedSubcommandEntries(allocator: std.mem.Allocator, cmd: *const Command) []Entry {
+    var rows: std.ArrayListUnmanaged(SortRow) = .empty;
     for (cmd.subcommands.items) |*sc| {
         if (sc.is_hidden) continue;
-        entries.append(b.allocator, .{ .term = sc.name, .help = subcommandHelp(b.allocator, sc) }) catch oom();
+        rows.append(allocator, .{ .ord = sc.disp_ord orelse 999, .key = sc.name, .entry = .{ .term = sc.name, .help = subcommandHelp(allocator, sc) } }) catch oom();
     }
     if (!cmd.disable_help_subcommand) {
-        entries.append(b.allocator, .{ .term = "help", .help = help_about }) catch oom();
+        rows.append(allocator, .{ .ord = cmd.builtinOrder(), .key = "help", .entry = .{ .term = "help", .help = help_about } }) catch oom();
     }
+    return sortedEntries(allocator, rows.items);
+}
+
+fn writeCommands(b: *Buf, cmd: *const Command) void {
+    const entries = sortedSubcommandEntries(b.allocator, cmd);
     b.addByte('\n');
     b.add("Commands:\n");
-    layout.table(b, 2, entries.items, cmd.term_width);
+    layout.table(b, 2, entries, cmd.term_width);
 }
 
 // ----- Arguments (positionals) -----
@@ -365,12 +428,11 @@ fn collectPositionals(allocator: std.mem.Allocator, cmd: *const Command, entries
 
 fn writeOptions(b: *Buf, cmd: *const Command) void {
     // default `Options:` section: unheaded options plus the auto help/version flags
-    var entries: std.ArrayListUnmanaged(Entry) = .empty;
-    collectOptions(b.allocator, cmd, &entries);
-    if (entries.items.len != 0) {
+    const entries = sortedOptionEntries(b.allocator, cmd, false);
+    if (entries.len != 0) {
         b.addByte('\n');
         b.add("Options:\n");
-        layout.table(b, 2, entries.items, cmd.term_width);
+        layout.table(b, 2, entries, cmd.term_width);
     }
     writeHeadedSections(b, cmd);
 }
@@ -408,7 +470,7 @@ fn writeHeadedSections(b: *Buf, cmd: *const Command) void {
 /// `write_all_args`).
 fn writeAllArgs(b: *Buf, cmd: *const Command) void {
     var sections: std.ArrayListUnmanaged([]const u8) = .empty;
-    if (hasListedSubcommands(cmd)) sections.append(b.allocator, section(b.allocator, "Commands", subcommandRows(b.allocator, cmd))) catch oom();
+    if (hasListedSubcommands(cmd)) sections.append(b.allocator, section(b.allocator, "Commands", tableStr(b.allocator, sortedSubcommandEntries(b.allocator, cmd), cmd.term_width))) catch oom();
     if (hasPositionals(cmd)) sections.append(b.allocator, section(b.allocator, "Arguments", positionalRows(b.allocator, cmd))) catch oom();
     const opts = optionRows(b.allocator, cmd);
     if (opts.len != 0) sections.append(b.allocator, section(b.allocator, "Options", opts)) catch oom();
@@ -443,21 +505,9 @@ fn appendHeadingSections(allocator: std.mem.Allocator, cmd: *const Command, sect
 }
 
 /// `{options}` rows: every visible non-positional (incl. headed) plus the auto
-/// help/version flags, as a left-aligned table.
+/// help/version flags, sorted by display order.
 fn optionRows(allocator: std.mem.Allocator, cmd: *const Command) []const u8 {
-    var entries: std.ArrayListUnmanaged(Entry) = .empty;
-    for (cmd.arg_list.items) |*a| {
-        if (a.isPositional() or a.is_hidden) continue;
-        entries.append(allocator, .{ .term = optionTerm(allocator, a), .help = argHelp(allocator, a) }) catch oom();
-    }
-    if (!cmd.disable_help_flag) {
-        const ht = if (hasLongHelp(cmd)) "Print help (see more with '--help')" else help_flag_help;
-        entries.append(allocator, .{ .term = "-h, --help", .help = ht }) catch oom();
-    }
-    if (cmd.hasVersionFlag()) {
-        entries.append(allocator, .{ .term = "-V, --version", .help = "Print version" }) catch oom();
-    }
-    return tableStr(allocator, entries.items, cmd.term_width);
+    return tableStr(allocator, sortedOptionEntries(allocator, cmd, true), cmd.term_width);
 }
 
 fn positionalRows(allocator: std.mem.Allocator, cmd: *const Command) []const u8 {
@@ -471,15 +521,7 @@ fn positionalRows(allocator: std.mem.Allocator, cmd: *const Command) []const u8 
 }
 
 fn subcommandRows(allocator: std.mem.Allocator, cmd: *const Command) []const u8 {
-    var entries: std.ArrayListUnmanaged(Entry) = .empty;
-    for (cmd.subcommands.items) |*sc| {
-        if (sc.is_hidden) continue;
-        entries.append(allocator, .{ .term = sc.name, .help = subcommandHelp(allocator, sc) }) catch oom();
-    }
-    if (!cmd.disable_help_subcommand) {
-        entries.append(allocator, .{ .term = "help", .help = help_about }) catch oom();
-    }
-    return tableStr(allocator, entries.items, cmd.term_width);
+    return tableStr(allocator, sortedSubcommandEntries(allocator, cmd), cmd.term_width);
 }
 
 fn tableStr(allocator: std.mem.Allocator, entries: []const Entry, term_width: ?usize) []const u8 {

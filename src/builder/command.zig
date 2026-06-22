@@ -20,6 +20,11 @@ pub const Command = struct {
     aliases_list: ?[]const []const u8 = null,
     visible_aliases_list: ?[]const []const u8 = null,
     is_hidden: bool = false,
+    /// this command's sort order as a subcommand (clap's `display_order`)
+    disp_ord: ?usize = null,
+    /// counter auto-assigned to children's display order; null disables it
+    /// (clap's `next_display_order`)
+    current_disp_ord: ?usize = 0,
     about_text: ?[]const u8 = null,
     version_str: ?[]const u8 = null,
     author_text: ?[]const u8 = null,
@@ -178,7 +183,28 @@ pub const Command = struct {
         }
         // args inherit the command's current help heading unless they set one
         if (!to_add.help_heading_set) to_add.help_heading = c.current_help_heading;
+        // auto-assign display order in definition order (clap's next_display_order)
+        if (c.current_disp_ord) |cur| {
+            if (to_add.disp_ord == null) to_add.disp_ord = cur;
+            c.current_disp_ord = cur + 1;
+        }
         c.arg_list.append(c.allocator, to_add) catch @panic("clap: OOM building command");
+        return c;
+    }
+
+    /// Set the display order assigned to args/subcommands added after this call;
+    /// null stops auto-assignment so they sort alphabetically (clap's
+    /// `next_display_order`).
+    pub fn nextDisplayOrder(self: Command, n: ?usize) Command {
+        var c = self;
+        c.current_disp_ord = n;
+        return c;
+    }
+
+    /// This command's sort position in its parent's `Commands:` list.
+    pub fn displayOrder(self: Command, n: usize) Command {
+        var c = self;
+        c.disp_ord = n;
         return c;
     }
 
@@ -198,8 +224,19 @@ pub const Command = struct {
 
     pub fn subcommand(self: Command, cmd: Command) Command {
         var c = self;
-        c.subcommands.append(c.allocator, cmd) catch @panic("clap: OOM building command");
+        var to_add = cmd;
+        if (c.current_disp_ord) |cur| {
+            if (to_add.disp_ord == null) to_add.disp_ord = cur;
+            c.current_disp_ord = cur + 1;
+        }
+        c.subcommands.append(c.allocator, to_add) catch @panic("clap: OOM building command");
         return c;
+    }
+
+    /// Display order of this command's children's synthetic help/version entries,
+    /// i.e. the counter after all real args/subcommands (999 if disabled).
+    pub fn builtinOrder(self: *const Command) usize {
+        return self.current_disp_ord orelse 999;
     }
 
     pub fn group(self: Command, g: ArgGroup) Command {

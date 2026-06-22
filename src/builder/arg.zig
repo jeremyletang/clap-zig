@@ -49,6 +49,9 @@ pub const Arg = struct {
     /// command's current `next_help_heading`".
     help_heading: ?[]const u8 = null,
     help_heading_set: bool = false,
+    /// help sort order; null → 999 (clap's `display_order`). Auto-assigned in
+    /// definition order by the owning command unless set explicitly.
+    disp_ord: ?usize = null,
     // positional index (1-based); assigned by `Command` when added. null = flag/option.
     index: ?usize = null,
     required_flag: bool = false,
@@ -323,6 +326,13 @@ pub const Arg = struct {
     pub fn overridesWith(self: Arg, ids: []const []const u8) Arg {
         var a = self;
         a.overrides = ids;
+        return a;
+    }
+
+    /// Sort position within its help section (clap's `display_order`).
+    pub fn displayOrder(self: Arg, n: usize) Arg {
+        var a = self;
+        a.disp_ord = n;
         return a;
     }
 

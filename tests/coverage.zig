@@ -32,10 +32,10 @@ pub const entries = [_]Entry{
     .{ .file = "hidden_args.rs", .name = "hide_pos_args_only", .status = .ported },
     .{ .file = "hidden_args.rs", .name = "hide_subcmds_only", .status = .ported },
     .{ .file = "hidden_args.rs", .name = "hidden_arg_with_possible_value_with_help", .status = .ported },
-    .{ .file = "hidden_args.rs", .name = "hide_short_args", .status = .deferred, .note = "hide_short_help" },
-    .{ .file = "hidden_args.rs", .name = "hide_short_args_long_help", .status = .deferred, .note = "hide_short_help" },
-    .{ .file = "hidden_args.rs", .name = "hide_long_args", .status = .deferred, .note = "hide_long_help" },
-    .{ .file = "hidden_args.rs", .name = "hide_long_args_short_help", .status = .deferred, .note = "hide_long_help" },
+    .{ .file = "hidden_args.rs", .name = "hide_short_args", .status = .ported },
+    .{ .file = "hidden_args.rs", .name = "hide_short_args_long_help", .status = .ported },
+    .{ .file = "hidden_args.rs", .name = "hide_long_args", .status = .ported },
+    .{ .file = "hidden_args.rs", .name = "hide_long_args_short_help", .status = .ported },
 
     // ----- arg_aliases.rs / arg_aliases_short.rs (arg long/short aliases) -----
     .{ .file = "arg_aliases.rs", .name = "single_alias_of_option", .status = .ported },

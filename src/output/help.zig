@@ -81,11 +81,11 @@ fn emitTag(b: *Buf, cmd: *const Command, tag: []const u8, long: bool) void {
     } else if (eq(u8, tag, "usage")) {
         b.add(cmd.usage_override orelse usage.appendBody(b.allocator, cmd, true));
     } else if (eq(u8, tag, "all-args")) {
-        writeAllArgs(b, cmd);
+        writeAllArgs(b, cmd, long);
     } else if (eq(u8, tag, "options")) {
-        b.add(optionRows(b.allocator, cmd));
+        b.add(optionRows(b.allocator, cmd, long));
     } else if (eq(u8, tag, "positionals")) {
-        b.add(positionalRows(b.allocator, cmd));
+        b.add(positionalRows(b.allocator, cmd, long));
     } else if (eq(u8, tag, "subcommands")) {
         b.add(subcommandRows(b.allocator, cmd));
     } else if (eq(u8, tag, "tab")) {
@@ -144,7 +144,9 @@ fn hasLongHelp(cmd: *const Command) bool {
     if (cmd.long_about_text != null) return true;
     if (cmd.before_long_help_text != null or cmd.after_long_help_text != null) return true;
     for (cmd.arg_list.items) |*a| {
-        if (a.value_help != null and !a.is_hidden) return true;
+        if (a.is_hidden) continue;
+        // anything that differs between -h and --help forces the long layout
+        if (a.value_help != null or a.hide_short_help or a.hide_long_help) return true;
     }
     return false;
 }
@@ -221,7 +223,7 @@ fn longArguments(allocator: std.mem.Allocator, cmd: *const Command) []const Long
     var entries: std.ArrayListUnmanaged(LongEntry) = .empty;
     var i: usize = 1;
     while (cmd.getPositional(i)) |a| : (i += 1) {
-        if (a.is_hidden) continue;
+        if (!a.shownIn(true)) continue;
         entries.append(allocator, .{
             .term = layout.positionalNotationStr(allocator, a),
             .help = a.help_str orelse "",
@@ -234,7 +236,7 @@ fn longArguments(allocator: std.mem.Allocator, cmd: *const Command) []const Long
 fn longOptions(allocator: std.mem.Allocator, cmd: *const Command) []const LongEntry {
     var entries: std.ArrayListUnmanaged(LongEntry) = .empty;
     for (cmd.arg_list.items) |*a| {
-        if (a.isPositional() or a.is_hidden) continue;
+        if (a.isPositional() or !a.shownIn(true)) continue;
         entries.append(allocator, .{
             .term = optionTerm(allocator, a),
             .help = a.help_str orelse "",
@@ -366,10 +368,10 @@ fn versionOrd(cmd: *const Command) usize {
 
 /// Sorted option rows for the default `Options:` section: visible unheaded
 /// options plus the auto help/version flags, ordered by display order.
-fn sortedOptionEntries(allocator: std.mem.Allocator, cmd: *const Command, include_headed: bool) []Entry {
+fn sortedOptionEntries(allocator: std.mem.Allocator, cmd: *const Command, include_headed: bool, long: bool) []Entry {
     var rows: std.ArrayListUnmanaged(SortRow) = .empty;
     for (cmd.arg_list.items) |*a| {
-        if (a.isPositional() or a.is_hidden) continue;
+        if (a.isPositional() or !a.shownIn(long)) continue;
         if (!include_headed and a.help_heading != null) continue;
         rows.append(allocator, .{ .ord = argOrd(a), .key = optionSortKey(allocator, a), .entry = .{ .term = optionTerm(allocator, a), .help = argHelp(allocator, a) } }) catch oom();
     }
@@ -416,7 +418,7 @@ fn writeArguments(b: *Buf, cmd: *const Command) void {
 fn collectPositionals(allocator: std.mem.Allocator, cmd: *const Command, entries: *std.ArrayListUnmanaged(Entry)) void {
     var i: usize = 1;
     while (cmd.getPositional(i)) |a| : (i += 1) {
-        if (a.is_hidden or a.help_heading != null) continue;
+        if (!a.shownIn(false) or a.help_heading != null) continue;
         entries.append(allocator, .{
             .term = layout.positionalNotationStr(allocator, a),
             .help = argHelp(allocator, a),
@@ -428,7 +430,7 @@ fn collectPositionals(allocator: std.mem.Allocator, cmd: *const Command, entries
 
 fn writeOptions(b: *Buf, cmd: *const Command) void {
     // default `Options:` section: unheaded options plus the auto help/version flags
-    const entries = sortedOptionEntries(b.allocator, cmd, false);
+    const entries = sortedOptionEntries(b.allocator, cmd, false, false);
     if (entries.len != 0) {
         b.addByte('\n');
         b.add("Options:\n");
@@ -444,13 +446,13 @@ fn writeHeadedSections(b: *Buf, cmd: *const Command) void {
     var seen: std.ArrayListUnmanaged([]const u8) = .empty;
     for (cmd.arg_list.items) |*a| {
         const heading = a.help_heading orelse continue;
-        if (a.is_hidden) continue;
+        if (!a.shownIn(false)) continue;
         if (containsStr(seen.items, heading)) continue;
         seen.append(b.allocator, heading) catch oom();
 
         var entries: std.ArrayListUnmanaged(Entry) = .empty;
         for (cmd.arg_list.items) |*x| {
-            if (x.is_hidden) continue;
+            if (!x.shownIn(false)) continue;
             const h = x.help_heading orelse continue;
             if (!std.mem.eql(u8, h, heading)) continue;
             const term = if (x.isPositional()) layout.positionalNotationStr(b.allocator, x) else optionTerm(b.allocator, x);
@@ -468,13 +470,13 @@ fn writeHeadedSections(b: *Buf, cmd: *const Command) void {
 /// `{all-args}`: Commands, Arguments, Options, and custom-heading sections,
 /// separated by a blank line, with no leading or trailing blank (clap's
 /// `write_all_args`).
-fn writeAllArgs(b: *Buf, cmd: *const Command) void {
+fn writeAllArgs(b: *Buf, cmd: *const Command, long: bool) void {
     var sections: std.ArrayListUnmanaged([]const u8) = .empty;
     if (hasListedSubcommands(cmd)) sections.append(b.allocator, section(b.allocator, "Commands", tableStr(b.allocator, sortedSubcommandEntries(b.allocator, cmd), cmd.term_width))) catch oom();
-    if (hasPositionals(cmd)) sections.append(b.allocator, section(b.allocator, "Arguments", positionalRows(b.allocator, cmd))) catch oom();
-    const opts = optionRows(b.allocator, cmd);
+    if (hasPositionals(cmd)) sections.append(b.allocator, section(b.allocator, "Arguments", positionalRows(b.allocator, cmd, long))) catch oom();
+    const opts = optionRows(b.allocator, cmd, long);
     if (opts.len != 0) sections.append(b.allocator, section(b.allocator, "Options", opts)) catch oom();
-    appendHeadingSections(b.allocator, cmd, &sections);
+    appendHeadingSections(b.allocator, cmd, &sections, long);
     for (sections.items, 0..) |s, i| {
         if (i != 0) b.add("\n\n");
         b.add(s);
@@ -486,15 +488,15 @@ fn section(allocator: std.mem.Allocator, header: []const u8, rows: []const u8) [
     return std.fmt.allocPrint(allocator, "{s}:\n{s}", .{ header, std.mem.trimEnd(u8, rows, "\n") }) catch oom();
 }
 
-fn appendHeadingSections(allocator: std.mem.Allocator, cmd: *const Command, sections: *std.ArrayListUnmanaged([]const u8)) void {
+fn appendHeadingSections(allocator: std.mem.Allocator, cmd: *const Command, sections: *std.ArrayListUnmanaged([]const u8), long: bool) void {
     var seen: std.ArrayListUnmanaged([]const u8) = .empty;
     for (cmd.arg_list.items) |*a| {
         const heading = a.help_heading orelse continue;
-        if (a.is_hidden or containsStr(seen.items, heading)) continue;
+        if (!a.shownIn(long) or containsStr(seen.items, heading)) continue;
         seen.append(allocator, heading) catch oom();
         var entries: std.ArrayListUnmanaged(Entry) = .empty;
         for (cmd.arg_list.items) |*x| {
-            if (x.is_hidden) continue;
+            if (!x.shownIn(long)) continue;
             const h = x.help_heading orelse continue;
             if (!std.mem.eql(u8, h, heading)) continue;
             const term = if (x.isPositional()) layout.positionalNotationStr(allocator, x) else optionTerm(allocator, x);
@@ -506,15 +508,15 @@ fn appendHeadingSections(allocator: std.mem.Allocator, cmd: *const Command, sect
 
 /// `{options}` rows: every visible non-positional (incl. headed) plus the auto
 /// help/version flags, sorted by display order.
-fn optionRows(allocator: std.mem.Allocator, cmd: *const Command) []const u8 {
-    return tableStr(allocator, sortedOptionEntries(allocator, cmd, true), cmd.term_width);
+fn optionRows(allocator: std.mem.Allocator, cmd: *const Command, long: bool) []const u8 {
+    return tableStr(allocator, sortedOptionEntries(allocator, cmd, true, long), cmd.term_width);
 }
 
-fn positionalRows(allocator: std.mem.Allocator, cmd: *const Command) []const u8 {
+fn positionalRows(allocator: std.mem.Allocator, cmd: *const Command, long: bool) []const u8 {
     var entries: std.ArrayListUnmanaged(Entry) = .empty;
     var i: usize = 1;
     while (cmd.getPositional(i)) |a| : (i += 1) {
-        if (a.is_hidden) continue;
+        if (!a.shownIn(long)) continue;
         entries.append(allocator, .{ .term = layout.positionalNotationStr(allocator, a), .help = argHelp(allocator, a) }) catch oom();
     }
     return tableStr(allocator, entries.items, cmd.term_width);

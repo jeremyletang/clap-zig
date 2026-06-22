@@ -76,6 +76,8 @@ pub const Arg = struct {
     is_exclusive: bool = false,
     is_global: bool = false,
     is_hidden: bool = false,
+    hide_short_help: bool = false,
+    hide_long_help: bool = false,
 
     pub fn new(id: []const u8) Arg {
         return .{ .id = id };
@@ -351,6 +353,28 @@ pub const Arg = struct {
         var a = self;
         a.is_hidden = yes;
         return a;
+    }
+
+    /// Hide this argument from the short (`-h`) help only (clap's `hide_short_help`).
+    pub fn hideShortHelp(self: Arg, yes: bool) Arg {
+        var a = self;
+        a.hide_short_help = yes;
+        return a;
+    }
+
+    /// Hide this argument from the long (`--help`) help only (clap's `hide_long_help`).
+    pub fn hideLongHelp(self: Arg, yes: bool) Arg {
+        var a = self;
+        a.hide_long_help = yes;
+        return a;
+    }
+
+    /// Whether this arg is shown in help for the given mode (clap's
+    /// `should_show_arg`): never when fully hidden, else respecting the
+    /// per-mode short/long hide flags.
+    pub fn shownIn(self: *const Arg, for_long: bool) bool {
+        if (self.is_hidden) return false;
+        return if (for_long) !self.hide_long_help else !self.hide_short_help;
     }
 
     /// This argument conflicts with every other argument (clap's `exclusive`).

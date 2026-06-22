@@ -176,8 +176,7 @@ const Parser = struct {
     /// Append a value to the pending option, ending collection once `max` is reached.
     fn consumeOptValue(self: *Parser, token: []const u8) void {
         const a = self.cmd.findArgById(self.state.opt).?;
-        self.pushVal(a.id, token);
-        self.pending_count += 1;
+        self.pending_count += self.pushSplit(a, token);
         if (self.pending_count >= a.effectiveNumArgs().max) self.state = .values_done;
     }
 
@@ -287,6 +286,17 @@ const Parser = struct {
 
     // ----- long / short -----
 
+    /// A help/version action on a matched arg yields the corresponding outcome
+    /// (clap's `ArgAction::Help`/`HelpShort`/`HelpLong`/`Version`).
+    fn actionResult(action_val: @import("../builder/action.zig").ArgAction) ?FlagResult {
+        return switch (action_val) {
+            .help, .help_long => .{ .help = true },
+            .help_short => .{ .help = false },
+            .version => .version,
+            else => null,
+        };
+    }
+
     fn parseLong(self: *Parser, l: lex.Long) FlagResult {
         if (!self.cmd.disable_help_flag and std.mem.eql(u8, l.name, "help") and
             self.cmd.findArgByLong("help") == null)
@@ -301,6 +311,7 @@ const Parser = struct {
         const a = self.cmd.findArgByLong(l.name) orelse
             return .{ .err = self.mkErr(.unknown_argument, self.dashed(l.name), null) };
         self.valid_arg_found = true;
+        if (actionResult(a.action_val)) |r| return r;
         if (self.reuseError(a)) |e| return .{ .err = e };
         if (!a.takesValue()) {
             if (l.value != null) {
@@ -327,6 +338,7 @@ const Parser = struct {
             const a = self.cmd.findArgByShort(c) orelse
                 return .{ .err = self.mkErr(.unknown_argument, self.shortDisplay(c), null) };
             self.valid_arg_found = true;
+            if (actionResult(a.action_val)) |r| return r;
             if (self.reuseError(a)) |e| return .{ .err = e };
             if (!a.takesValue()) {
                 self.recordArg(a, &.{}, .command_line);
@@ -405,7 +417,23 @@ const Parser = struct {
             }
             return;
         }
-        for (vals) |v| self.pushVal(a.id, v);
+        for (vals) |v| _ = self.pushSplit(a, v);
+    }
+
+    /// Record a raw value, splitting it on the arg's `value_delimiter` into
+    /// separate values when one is set. Returns how many values were recorded.
+    fn pushSplit(self: *Parser, a: *const Arg, token: []const u8) usize {
+        if (a.value_delimiter) |d| {
+            var it = std.mem.splitScalar(u8, token, d);
+            var n: usize = 0;
+            while (it.next()) |piece| {
+                self.pushVal(a.id, piece);
+                n += 1;
+            }
+            return n;
+        }
+        self.pushVal(a.id, token);
+        return 1;
     }
 
     /// On a new explicit occurrence, drop any args this one overrides, plus any
@@ -449,9 +477,28 @@ const Parser = struct {
                 }
             }
         }
-        const dv = a.default_value orelse implicitDefault(a.action_val) orelse return;
+        if (a.default_value) |dv| {
+            if (a.value_delimiter) |d| {
+                self.setDefaultSplit(a.id, dv, d);
+            } else {
+                self.cur_idx += 1;
+                self.matches.setDefault(a.id, dv, self.cur_idx);
+            }
+            return;
+        }
+        const imp = implicitDefault(a.action_val) orelse return;
         self.cur_idx += 1;
-        self.matches.setDefault(a.id, dv, self.cur_idx);
+        self.matches.setDefault(a.id, imp, self.cur_idx);
+    }
+
+    /// Seed a default value split on the arg's delimiter into multiple values.
+    fn setDefaultSplit(self: *Parser, id: []const u8, value: []const u8, d: u8) void {
+        var pieces: std.ArrayListUnmanaged([]const u8) = .empty;
+        var it = std.mem.splitScalar(u8, value, d);
+        while (it.next()) |piece| pieces.append(self.allocator, piece) catch @panic("clap: OOM");
+        const first = self.cur_idx + 1;
+        self.cur_idx += pieces.items.len;
+        self.matches.setDefaults(id, pieces.items, first);
     }
 
     /// Whether a conditional-default predicate holds: the referenced arg is

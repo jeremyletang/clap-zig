@@ -17,10 +17,15 @@ pub const Command = struct {
     allocator: std.mem.Allocator,
     name: []const u8,
     bin_name: ?[]const u8 = null,
+    aliases_list: ?[]const []const u8 = null,
+    visible_aliases_list: ?[]const []const u8 = null,
+    is_hidden: bool = false,
     about_text: ?[]const u8 = null,
     version_str: ?[]const u8 = null,
     author_text: ?[]const u8 = null,
     help_template_text: ?[]const u8 = null,
+    /// the heading stamped onto subsequently-added args (clap's `next_help_heading`)
+    current_help_heading: ?[]const u8 = null,
     before_help_text: ?[]const u8 = null,
     after_help_text: ?[]const u8 = null,
     before_long_help_text: ?[]const u8 = null,
@@ -56,6 +61,21 @@ pub const Command = struct {
     pub fn about(self: Command, text: []const u8) Command {
         var c = self;
         c.about_text = text;
+        return c;
+    }
+
+    /// Hidden names this subcommand also responds to (clap's `alias`/`aliases`).
+    pub fn aliases(self: Command, names: []const []const u8) Command {
+        var c = self;
+        c.aliases_list = names;
+        return c;
+    }
+
+    /// Names this subcommand responds to and that are shown in help (clap's
+    /// `visible_alias`/`visible_aliases`).
+    pub fn visibleAliases(self: Command, names: []const []const u8) Command {
+        var c = self;
+        c.visible_aliases_list = names;
         return c;
     }
 
@@ -131,7 +151,17 @@ pub const Command = struct {
         if (to_add.isPositional() and to_add.index == null) {
             to_add.index = c.countPositionals() + 1;
         }
+        // args inherit the command's current help heading unless they set one
+        if (!to_add.help_heading_set) to_add.help_heading = c.current_help_heading;
         c.arg_list.append(c.allocator, to_add) catch @panic("clap: OOM building command");
+        return c;
+    }
+
+    /// Set the help-section heading applied to args added after this call
+    /// (clap's `next_help_heading`); null returns to the default `Options:`.
+    pub fn nextHelpHeading(self: Command, heading: ?[]const u8) Command {
+        var c = self;
+        c.current_help_heading = heading;
         return c;
     }
 
@@ -251,18 +281,32 @@ pub const Command = struct {
         return self.subcommands.items.len > 0;
     }
 
+    /// Hide this subcommand from help output and usage (clap's `hide`).
+    pub fn hide(self: Command, yes: bool) Command {
+        var c = self;
+        c.is_hidden = yes;
+        return c;
+    }
+
+    /// Whether any subcommand is shown in help (not hidden) — gates the
+    /// `Commands:` section, the auto `help` entry, and `[COMMAND]` in usage.
+    pub fn hasVisibleSubcommands(self: *const Command) bool {
+        for (self.subcommands.items) |*sc| {
+            if (!sc.is_hidden) return true;
+        }
+        return false;
+    }
+
     pub fn findArgByLong(self: *const Command, name: []const u8) ?*const Arg {
         for (self.arg_list.items) |*a| {
-            if (a.long_name) |l| {
-                if (std.mem.eql(u8, l, name)) return a;
-            }
+            if (a.matchesLong(name)) return a;
         }
         return null;
     }
 
     pub fn findArgByShort(self: *const Command, c: u8) ?*const Arg {
         for (self.arg_list.items) |*a| {
-            if (a.short_char == c) return a;
+            if (a.matchesShort(c)) return a;
         }
         return null;
     }
@@ -283,9 +327,21 @@ pub const Command = struct {
 
     pub fn findSubcommand(self: *const Command, name: []const u8) ?*const Command {
         for (self.subcommands.items) |*sc| {
-            if (std.mem.eql(u8, sc.name, name)) return sc;
+            if (sc.matchesName(name)) return sc;
         }
         return null;
+    }
+
+    /// Whether `name` is this command's name or one of its aliases.
+    pub fn matchesName(self: *const Command, name: []const u8) bool {
+        if (std.mem.eql(u8, self.name, name)) return true;
+        if (self.aliases_list) |al| {
+            for (al) |x| if (std.mem.eql(u8, x, name)) return true;
+        }
+        if (self.visible_aliases_list) |al| {
+            for (al) |x| if (std.mem.eql(u8, x, name)) return true;
+        }
+        return false;
     }
 
     pub fn findGroup(self: *const Command, id: []const u8) ?*const ArgGroup {

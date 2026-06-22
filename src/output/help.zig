@@ -23,8 +23,15 @@ pub fn render(allocator: std.mem.Allocator, cmd: *const Command, long: bool) []c
         renderFlattened(&fb, cmd);
         return fb.items();
     }
-    if (long and hasLongHelp(cmd)) return renderLong(allocator, cmd);
-    return renderShort(allocator, cmd);
+    const out = if (long and hasLongHelp(cmd)) renderLong(allocator, cmd) else renderShort(allocator, cmd);
+    return trimTrailing(allocator, out);
+}
+
+/// clap trims trailing whitespace from the end of the help and terminates with a
+/// single newline (so the last line of a section never keeps padding spaces).
+fn trimTrailing(allocator: std.mem.Allocator, s: []const u8) []const u8 {
+    const trimmed = std.mem.trimEnd(u8, s, " \n");
+    return std.fmt.allocPrint(allocator, "{s}\n", .{trimmed}) catch oom();
 }
 
 fn renderShort(allocator: std.mem.Allocator, cmd: *const Command) []const u8 {
@@ -63,7 +70,7 @@ fn hasLongHelp(cmd: *const Command) bool {
     if (cmd.long_about_text != null) return true;
     if (cmd.before_long_help_text != null or cmd.after_long_help_text != null) return true;
     for (cmd.arg_list.items) |*a| {
-        if (a.value_help != null) return true;
+        if (a.value_help != null and !a.is_hidden) return true;
     }
     return false;
 }
@@ -127,6 +134,7 @@ fn longSection(b: *Buf, entries: []const LongEntry) void {
 fn longCommands(allocator: std.mem.Allocator, cmd: *const Command) []const LongEntry {
     var entries: std.ArrayListUnmanaged(LongEntry) = .empty;
     for (cmd.subcommands.items) |*sc| {
+        if (sc.is_hidden) continue;
         entries.append(allocator, .{ .term = sc.name, .help = sc.about_text orelse "" }) catch oom();
     }
     if (!cmd.disable_help_subcommand) {
@@ -139,6 +147,7 @@ fn longArguments(allocator: std.mem.Allocator, cmd: *const Command) []const Long
     var entries: std.ArrayListUnmanaged(LongEntry) = .empty;
     var i: usize = 1;
     while (cmd.getPositional(i)) |a| : (i += 1) {
+        if (a.is_hidden) continue;
         entries.append(allocator, .{
             .term = layout.positionalNotationStr(allocator, a),
             .help = a.help_str orelse "",
@@ -151,7 +160,7 @@ fn longArguments(allocator: std.mem.Allocator, cmd: *const Command) []const Long
 fn longOptions(allocator: std.mem.Allocator, cmd: *const Command) []const LongEntry {
     var entries: std.ArrayListUnmanaged(LongEntry) = .empty;
     for (cmd.arg_list.items) |*a| {
-        if (a.isPositional()) continue;
+        if (a.isPositional() or a.is_hidden) continue;
         entries.append(allocator, .{
             .term = optionTerm(allocator, a),
             .help = a.help_str orelse "",
@@ -224,10 +233,30 @@ fn makeHelpSubcommand(allocator: std.mem.Allocator, parent: *const Command) Comm
 
 // ----- Commands -----
 
+/// A subcommand's Commands-list help: its about plus `[aliases: a, b]` for any
+/// visible aliases (subcommand aliases are bare names, no dashes).
+fn subcommandHelp(allocator: std.mem.Allocator, sc: *const Command) []const u8 {
+    const vis = sc.visible_aliases_list orelse return sc.about_text orelse "";
+    if (vis.len == 0) return sc.about_text orelse "";
+    var b = Buf{ .allocator = allocator };
+    if (sc.about_text) |t| {
+        b.add(t);
+        b.addByte(' ');
+    }
+    b.add("[aliases: ");
+    for (vis, 0..) |x, i| {
+        if (i != 0) b.add(", ");
+        b.add(x);
+    }
+    b.add("]");
+    return b.items();
+}
+
 fn writeCommands(b: *Buf, cmd: *const Command) void {
     var entries: std.ArrayListUnmanaged(Entry) = .empty;
     for (cmd.subcommands.items) |*sc| {
-        entries.append(b.allocator, .{ .term = sc.name, .help = sc.about_text orelse "" }) catch oom();
+        if (sc.is_hidden) continue;
+        entries.append(b.allocator, .{ .term = sc.name, .help = subcommandHelp(b.allocator, sc) }) catch oom();
     }
     if (!cmd.disable_help_subcommand) {
         entries.append(b.allocator, .{ .term = "help", .help = help_about }) catch oom();
@@ -250,6 +279,7 @@ fn writeArguments(b: *Buf, cmd: *const Command) void {
 fn collectPositionals(allocator: std.mem.Allocator, cmd: *const Command, entries: *std.ArrayListUnmanaged(Entry)) void {
     var i: usize = 1;
     while (cmd.getPositional(i)) |a| : (i += 1) {
+        if (a.is_hidden or a.help_heading != null) continue;
         entries.append(allocator, .{
             .term = layout.positionalNotationStr(allocator, a),
             .help = argHelp(allocator, a),
@@ -260,17 +290,53 @@ fn collectPositionals(allocator: std.mem.Allocator, cmd: *const Command, entries
 // ----- Options -----
 
 fn writeOptions(b: *Buf, cmd: *const Command) void {
+    // default `Options:` section: unheaded options plus the auto help/version flags
     var entries: std.ArrayListUnmanaged(Entry) = .empty;
     collectOptions(b.allocator, cmd, &entries);
-    if (entries.items.len == 0) return; // no Options section when empty (e.g. flags disabled)
-    b.addByte('\n');
-    b.add("Options:\n");
-    layout.table(b, 2, entries.items);
+    if (entries.items.len != 0) {
+        b.addByte('\n');
+        b.add("Options:\n");
+        layout.table(b, 2, entries.items);
+    }
+    writeHeadedSections(b, cmd);
+}
+
+/// One section per distinct `help_heading`, in first-appearance order. A section
+/// holds both options and positionals assigned to that heading, each rendered by
+/// its kind.
+fn writeHeadedSections(b: *Buf, cmd: *const Command) void {
+    var seen: std.ArrayListUnmanaged([]const u8) = .empty;
+    for (cmd.arg_list.items) |*a| {
+        const heading = a.help_heading orelse continue;
+        if (a.is_hidden) continue;
+        if (containsStr(seen.items, heading)) continue;
+        seen.append(b.allocator, heading) catch oom();
+
+        var entries: std.ArrayListUnmanaged(Entry) = .empty;
+        for (cmd.arg_list.items) |*x| {
+            if (x.is_hidden) continue;
+            const h = x.help_heading orelse continue;
+            if (!std.mem.eql(u8, h, heading)) continue;
+            const term = if (x.isPositional()) layout.positionalNotationStr(b.allocator, x) else optionTerm(b.allocator, x);
+            entries.append(b.allocator, .{ .term = term, .help = argHelp(b.allocator, x) }) catch oom();
+        }
+        b.addByte('\n');
+        b.add(heading);
+        b.add(":\n");
+        layout.table(b, 2, entries.items);
+    }
+}
+
+fn containsStr(haystack: []const []const u8, needle: []const u8) bool {
+    for (haystack) |h| {
+        if (std.mem.eql(u8, h, needle)) return true;
+    }
+    return false;
 }
 
 fn collectOptions(allocator: std.mem.Allocator, cmd: *const Command, entries: *std.ArrayListUnmanaged(Entry)) void {
     for (cmd.arg_list.items) |*a| {
-        if (a.isPositional()) continue;
+        if (a.isPositional() or a.is_hidden or a.help_heading != null) continue;
         entries.append(allocator, .{
             .term = optionTerm(allocator, a),
             .help = argHelp(allocator, a),
@@ -335,6 +401,7 @@ fn argHelp(allocator: std.mem.Allocator, a: *const Arg) []const u8 {
         b.add(d);
         b.add("]");
     }
+    appendVisibleAliases(&b, a);
     if (a.possibleValueNames(allocator)) |pv| {
         sep(&b);
         b.add("[possible values: ");
@@ -347,6 +414,29 @@ fn argHelp(allocator: std.mem.Allocator, a: *const Arg) []const u8 {
     return b.items();
 }
 
+/// Append `[aliases: -s, --long, ...]` from visible short then long aliases.
+fn appendVisibleAliases(b: *Buf, a: *const Arg) void {
+    const shorts = a.visible_short_aliases_list orelse "";
+    const longs = a.visible_aliases_list orelse &[_][]const u8{};
+    if (shorts.len == 0 and longs.len == 0) return;
+    sep(b);
+    b.add("[aliases: ");
+    var first = true;
+    for (shorts) |c| {
+        if (!first) b.add(", ");
+        b.add("-");
+        b.addByte(c);
+        first = false;
+    }
+    for (longs) |l| {
+        if (!first) b.add(", ");
+        b.add("--");
+        b.add(l);
+        first = false;
+    }
+    b.add("]");
+}
+
 fn sep(b: *Buf) void {
     if (b.items().len != 0) b.addByte(' ');
 }
@@ -354,10 +444,13 @@ fn sep(b: *Buf) void {
 // ----- queries -----
 
 fn hasListedSubcommands(cmd: *const Command) bool {
-    // the synthetic `help` subcommand is only listed when there are real ones
-    return cmd.hasSubcommands();
+    // the synthetic `help` subcommand is only listed when there are visible ones
+    return cmd.hasVisibleSubcommands();
 }
 
 fn hasPositionals(cmd: *const Command) bool {
-    return cmd.countPositionals() > 0;
+    for (cmd.arg_list.items) |*a| {
+        if (a.isPositional() and !a.is_hidden and a.help_heading == null) return true;
+    }
+    return false;
 }

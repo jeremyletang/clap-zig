@@ -17,6 +17,50 @@ pub const Entry = struct {
 };
 
 pub const entries = [_]Entry{
+    // ----- hidden_args.rs (hide on args / positionals / subcommands) -----
+    .{ .file = "hidden_args.rs", .name = "hide_args", .status = .ported },
+    .{ .file = "hidden_args.rs", .name = "hide_pos_args", .status = .ported },
+    .{ .file = "hidden_args.rs", .name = "hide_subcmds", .status = .ported },
+    .{ .file = "hidden_args.rs", .name = "hide_opt_args_only", .status = .ported },
+    .{ .file = "hidden_args.rs", .name = "hide_pos_args_only", .status = .ported },
+    .{ .file = "hidden_args.rs", .name = "hide_subcmds_only", .status = .ported },
+    .{ .file = "hidden_args.rs", .name = "hidden_arg_with_possible_value_with_help", .status = .ported },
+    .{ .file = "hidden_args.rs", .name = "hide_short_args", .status = .deferred, .note = "hide_short_help" },
+    .{ .file = "hidden_args.rs", .name = "hide_short_args_long_help", .status = .deferred, .note = "hide_short_help" },
+    .{ .file = "hidden_args.rs", .name = "hide_long_args", .status = .deferred, .note = "hide_long_help" },
+    .{ .file = "hidden_args.rs", .name = "hide_long_args_short_help", .status = .deferred, .note = "hide_long_help" },
+
+    // ----- arg_aliases.rs / arg_aliases_short.rs (arg long/short aliases) -----
+    .{ .file = "arg_aliases.rs", .name = "single_alias_of_option", .status = .ported },
+    .{ .file = "arg_aliases.rs", .name = "multiple_aliases_of_option", .status = .ported },
+    .{ .file = "arg_aliases.rs", .name = "single_alias_of_flag", .status = .ported },
+    .{ .file = "arg_aliases.rs", .name = "multiple_aliases_of_flag", .status = .ported },
+    .{ .file = "arg_aliases.rs", .name = "alias_on_a_subcommand_option", .status = .ported },
+    .{ .file = "arg_aliases.rs", .name = "invisible_arg_aliases_help_output", .status = .ported },
+    .{ .file = "arg_aliases.rs", .name = "visible_arg_aliases_help_output", .status = .ported },
+    .{ .file = "arg_aliases.rs", .name = "get_aliases", .status = .deferred, .note = "get_*_aliases reflection API" },
+    .{ .file = "arg_aliases_short.rs", .name = "single_short_alias_of_option", .status = .ported },
+    .{ .file = "arg_aliases_short.rs", .name = "multiple_short_aliases_of_option", .status = .ported },
+    .{ .file = "arg_aliases_short.rs", .name = "single_short_alias_of_flag", .status = .ported },
+    .{ .file = "arg_aliases_short.rs", .name = "visible_short_arg_aliases_help_output", .status = .deferred, .note = "non-ASCII short alias (char vs u8)" },
+    // subcommand aliases (subcommands.rs)
+    .{ .file = "subcommands.rs", .name = "single_alias", .status = .ported },
+    .{ .file = "subcommands.rs", .name = "multiple_aliases", .status = .ported },
+    .{ .file = "subcommands.rs", .name = "alias_help", .status = .ported },
+    .{ .file = "subcommands.rs", .name = "visible_aliases_help_output", .status = .ported },
+    .{ .file = "subcommands.rs", .name = "invisible_aliases_help_output", .status = .ported },
+
+    // ----- delimiters.rs (value_delimiter) -----
+    .{ .file = "delimiters.rs", .name = "opt_default_no_delim", .status = .ported },
+    .{ .file = "delimiters.rs", .name = "opt_eq_no_delim", .status = .ported },
+    .{ .file = "delimiters.rs", .name = "opt_s_eq_no_delim", .status = .ported },
+    .{ .file = "delimiters.rs", .name = "opt_s_default_no_delim", .status = .ported },
+    .{ .file = "delimiters.rs", .name = "opt_s_no_space_no_delim", .status = .ported },
+    .{ .file = "delimiters.rs", .name = "opt_s_no_space_mult_no_delim", .status = .ported },
+    .{ .file = "delimiters.rs", .name = "opt_eq_mult_def_delim", .status = .ported },
+    // default_vals.rs delimited default
+    .{ .file = "default_vals.rs", .name = "with_value_delimiter", .status = .ported },
+
     // ----- help.rs (before/after help + long_about; templates/wrapping/headings pending) -----
     .{ .file = "help.rs", .name = "after_and_before_help_output", .status = .ported },
     .{ .file = "help.rs", .name = "after_and_before_long_help_output", .status = .ported },
@@ -25,6 +69,12 @@ pub const entries = [_]Entry{
     .{ .file = "help.rs", .name = "show_short_about_issue_897", .status = .ported },
     .{ .file = "help.rs", .name = "prefer_about_over_long_about_in_subcommands_list", .status = .ported },
     .{ .file = "help.rs", .name = "after_help_no_args", .status = .ported },
+    .{ .file = "help.rs", .name = "short_with_value", .status = .ported },
+    .{ .file = "help.rs", .name = "short_with_count", .status = .ported },
+    .{ .file = "help.rs", .name = "custom_heading_pos", .status = .ported },
+    .{ .file = "help.rs", .name = "only_custom_heading_opts_no_args", .status = .ported },
+    .{ .file = "help.rs", .name = "custom_headers_headers", .status = .deferred, .note = "multi-value-name usage rendering" },
+    .{ .file = "help.rs", .name = "custom_help_headers_hide_args", .status = .deferred, .note = "hide_short_help" },
 
     // ----- default_vals.rs (default_value_if / default_values_if / *_ifs) -----
     .{ .file = "default_vals.rs", .name = "default_if_arg_present_no_default", .status = .ported },
@@ -65,8 +115,8 @@ pub const entries = [_]Entry{
     .{ .file = "opts.rs", .name = "double_hyphen_as_value", .status = .deferred, .note = "allow_hyphen_values" },
     .{ .file = "opts.rs", .name = "require_equals_no_empty_values_fail", .status = .deferred, .note = "NonEmptyStringValueParser" },
     .{ .file = "opts.rs", .name = "lots_o_vals", .status = .deferred, .note = "multi-value options (num_args>1)" },
-    .{ .file = "opts.rs", .name = "require_delims_no_delim", .status = .deferred, .note = "value_delimiter" },
-    .{ .file = "opts.rs", .name = "require_delims", .status = .deferred, .note = "value_delimiter" },
+    .{ .file = "opts.rs", .name = "require_delims_no_delim", .status = .deferred, .note = "value_delimiter num_args greediness" },
+    .{ .file = "opts.rs", .name = "require_delims", .status = .deferred, .note = "value_delimiter num_args greediness" },
     .{ .file = "opts.rs", .name = "leading_hyphen_pass", .status = .deferred, .note = "allow_hyphen_values" },
 
     // ----- flags.rs -----

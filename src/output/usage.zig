@@ -32,7 +32,7 @@ fn body(allocator: std.mem.Allocator, cmd: *const Command, used: []const []const
     var parts: Parts = .empty;
     if (used.len == 0 and needsOptionsTag(cmd)) push(allocator, &parts, "[OPTIONS]");
     collectArgParts(allocator, cmd, used, &parts);
-    if (include_subcommand and cmd.hasSubcommands()) {
+    if (include_subcommand and cmd.hasVisibleSubcommands()) {
         // Help usage lists `[COMMAND]`/`<COMMAND>`; smart (error) usage only
         // shows the subcommand slot when one is required (clap's write_smart_usage).
         if (used.len == 0) {
@@ -89,7 +89,7 @@ fn collectArgParts(allocator: std.mem.Allocator, cmd: *const Command, used: []co
 fn appendPositionals(allocator: std.mem.Allocator, cmd: *const Command, members: []const []const u8, used: []const []const u8, parts: *Parts) void {
     var i: usize = 1;
     while (cmd.getPositional(i)) |a| : (i += 1) {
-        if (contains(members, a.id)) continue;
+        if (contains(members, a.id) or a.is_hidden) continue;
         // A positional pulled into `used` (e.g. it was supplied and is named in a
         // conflict's usage) is forced to the required `<NAME>` form, matching
         // clap's `stylized(Some(true))` for incls.
@@ -120,7 +120,7 @@ fn appendPositionals(allocator: std.mem.Allocator, cmd: *const Command, members:
 /// help/version (those aren't in arg_list) and isn't in a required group.
 pub fn needsOptionsTag(cmd: *const Command) bool {
     for (cmd.arg_list.items) |*a| {
-        if (a.isPositional()) continue;
+        if (a.isPositional() or a.is_hidden) continue;
         if (cmd.argInRequiredGroup(a)) continue;
         return true;
     }

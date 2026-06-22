@@ -35,10 +35,20 @@ pub const Arg = struct {
     id: []const u8 = "",
     short_char: ?u8 = null,
     long_name: ?[]const u8 = null,
+    aliases_list: ?[]const []const u8 = null,
+    visible_aliases_list: ?[]const []const u8 = null,
+    short_aliases_list: ?[]const u8 = null,
+    visible_short_aliases_list: ?[]const u8 = null,
     help_str: ?[]const u8 = null,
     value_name: ?[]const u8 = null,
     action_val: ArgAction = .set,
     num_args: ?range.ValueRange = null,
+    value_delimiter: ?u8 = null,
+    /// help section heading (null = the default `Options:` section). `*_set`
+    /// distinguishes "explicitly set" (incl. to null) from "inherit the
+    /// command's current `next_help_heading`".
+    help_heading: ?[]const u8 = null,
+    help_heading_set: bool = false,
     // positional index (1-based); assigned by `Command` when added. null = flag/option.
     index: ?usize = null,
     required_flag: bool = false,
@@ -62,6 +72,7 @@ pub const Arg = struct {
     overrides: ?[]const []const u8 = null,
     is_exclusive: bool = false,
     is_global: bool = false,
+    is_hidden: bool = false,
 
     pub fn new(id: []const u8) Arg {
         return .{ .id = id };
@@ -80,6 +91,61 @@ pub const Arg = struct {
         a.long_name = name;
         if (a.id.len == 0) a.id = name;
         return a;
+    }
+
+    /// Hidden long aliases that also match this arg (clap's `alias`/`aliases`).
+    pub fn aliases(self: Arg, names: []const []const u8) Arg {
+        var a = self;
+        a.aliases_list = names;
+        return a;
+    }
+
+    /// Long aliases that match this arg and are shown in help (clap's
+    /// `visible_alias`/`visible_aliases`).
+    pub fn visibleAliases(self: Arg, names: []const []const u8) Arg {
+        var a = self;
+        a.visible_aliases_list = names;
+        return a;
+    }
+
+    /// Hidden short aliases that also match this arg (clap's `short_alias(es)`).
+    pub fn shortAliases(self: Arg, chars: []const u8) Arg {
+        var a = self;
+        a.short_aliases_list = chars;
+        return a;
+    }
+
+    /// Short aliases shown in help (clap's `visible_short_alias(es)`).
+    pub fn visibleShortAliases(self: Arg, chars: []const u8) Arg {
+        var a = self;
+        a.visible_short_aliases_list = chars;
+        return a;
+    }
+
+    /// Whether `name` matches this arg's long name or any of its aliases.
+    pub fn matchesLong(self: *const Arg, name: []const u8) bool {
+        if (self.long_name) |l| {
+            if (std.mem.eql(u8, l, name)) return true;
+        }
+        if (self.aliases_list) |al| {
+            for (al) |x| if (std.mem.eql(u8, x, name)) return true;
+        }
+        if (self.visible_aliases_list) |al| {
+            for (al) |x| if (std.mem.eql(u8, x, name)) return true;
+        }
+        return false;
+    }
+
+    /// Whether `c` matches this arg's short flag or any of its short aliases.
+    pub fn matchesShort(self: *const Arg, c: u8) bool {
+        if (self.short_char == c) return true;
+        if (self.short_aliases_list) |al| {
+            for (al) |x| if (x == c) return true;
+        }
+        if (self.visible_short_aliases_list) |al| {
+            for (al) |x| if (x == c) return true;
+        }
+        return false;
     }
 
     pub fn help(self: Arg, text: []const u8) Arg {
@@ -129,6 +195,14 @@ pub const Arg = struct {
     pub fn defaultValue(self: Arg, v: []const u8) Arg {
         var a = self;
         a.default_value = v;
+        return a;
+    }
+
+    /// Split each supplied value on this byte into separate values (clap's
+    /// `value_delimiter`).
+    pub fn valueDelimiter(self: Arg, c: u8) Arg {
+        var a = self;
+        a.value_delimiter = c;
         return a;
     }
 
@@ -249,6 +323,23 @@ pub const Arg = struct {
     pub fn overridesWith(self: Arg, ids: []const []const u8) Arg {
         var a = self;
         a.overrides = ids;
+        return a;
+    }
+
+    /// Place this argument under a named help section, or the default `Options:`
+    /// section when null (clap's `help_heading`). Overrides the command's
+    /// `next_help_heading`.
+    pub fn helpHeading(self: Arg, heading: ?[]const u8) Arg {
+        var a = self;
+        a.help_heading = heading;
+        a.help_heading_set = true;
+        return a;
+    }
+
+    /// Omit this argument from help output and usage (clap's `hide`).
+    pub fn hide(self: Arg, yes: bool) Arg {
+        var a = self;
+        a.is_hidden = yes;
         return a;
     }
 

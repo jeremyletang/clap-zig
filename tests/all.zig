@@ -20,5 +20,9 @@ test {
     _ = @import("clap_required_if_test.zig");
     _ = @import("clap_default_value_if_test.zig");
     _ = @import("clap_help_layout_test.zig");
+    _ = @import("clap_delimiters_test.zig");
+    _ = @import("clap_aliases_test.zig");
+    _ = @import("clap_hidden_test.zig");
+    _ = @import("clap_help_headings_test.zig");
     _ = @import("coverage_test.zig");
 }

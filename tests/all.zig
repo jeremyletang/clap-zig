@@ -24,5 +24,6 @@ test {
     _ = @import("clap_aliases_test.zig");
     _ = @import("clap_hidden_test.zig");
     _ = @import("clap_help_headings_test.zig");
+    _ = @import("clap_help_template_test.zig");
     _ = @import("coverage_test.zig");
 }

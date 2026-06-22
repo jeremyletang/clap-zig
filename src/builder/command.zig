@@ -24,6 +24,7 @@ pub const Command = struct {
     version_str: ?[]const u8 = null,
     author_text: ?[]const u8 = null,
     help_template_text: ?[]const u8 = null,
+    usage_override: ?[]const u8 = null,
     /// the heading stamped onto subsequently-added args (clap's `next_help_heading`)
     current_help_heading: ?[]const u8 = null,
     before_help_text: ?[]const u8 = null,
@@ -127,11 +128,26 @@ pub const Command = struct {
         return c;
     }
 
-    /// Stored for parity; clap-zig renders its own help layout (templates pending).
+    /// Custom help layout via `{tag}` substitution (clap's `help_template`).
     pub fn helpTemplate(self: Command, t: []const u8) Command {
         var c = self;
         c.help_template_text = t;
         return c;
+    }
+
+    /// Replace the auto-generated usage body with a fixed string (clap's
+    /// `override_usage`); used by `{usage}` and the `Usage:` line.
+    pub fn overrideUsage(self: Command, t: []const u8) Command {
+        var c = self;
+        c.usage_override = t;
+        return c;
+    }
+
+    /// The about text for help: the long about in `--help` (if set), else the
+    /// regular about.
+    pub fn aboutText(self: *const Command, long: bool) ?[]const u8 {
+        if (long) return self.long_about_text orelse self.about_text;
+        return self.about_text;
     }
 
     /// Whether the auto `-V/--version` flag applies (version set and not disabled).

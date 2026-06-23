@@ -42,10 +42,15 @@ fn body(allocator: std.mem.Allocator, cmd: *const Command, used: []const []const
     if (include_subcommand and cmd.hasVisibleSubcommands()) {
         // Help usage lists `[COMMAND]`/`<COMMAND>`; smart (error) usage only
         // shows the subcommand slot when one is required (clap's write_smart_usage).
+        const cn = cmd.subcommand_value_name orelse "COMMAND";
         if (used.len == 0) {
-            push(allocator, &parts, if (cmd.subcommand_required) "<COMMAND>" else "[COMMAND]");
+            const slot = if (cmd.subcommand_required)
+                std.fmt.allocPrint(allocator, "<{s}>", .{cn}) catch @panic("clap: OOM")
+            else
+                std.fmt.allocPrint(allocator, "[{s}]", .{cn}) catch @panic("clap: OOM");
+            push(allocator, &parts, slot);
         } else if (cmd.subcommand_required) {
-            push(allocator, &parts, "<COMMAND>");
+            push(allocator, &parts, std.fmt.allocPrint(allocator, "<{s}>", .{cn}) catch @panic("clap: OOM"));
         }
     }
 

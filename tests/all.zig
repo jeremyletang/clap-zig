@@ -40,5 +40,6 @@ test {
     _ = @import("clap_positional_num_args_test.zig");
     _ = @import("clap_value_terminator_test.zig");
     _ = @import("clap_trailing_var_arg_test.zig");
+    _ = @import("clap_subcommand_settings_test.zig");
     _ = @import("coverage_test.zig");
 }

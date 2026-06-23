@@ -41,6 +41,12 @@ pub const Command = struct {
     author_text: ?[]const u8 = null,
     help_template_text: ?[]const u8 = null,
     usage_override: ?[]const u8 = null,
+    /// placeholder for the subcommand slot in usage (clap's `subcommand_value_name`,
+    /// default `COMMAND`)
+    subcommand_value_name: ?[]const u8 = null,
+    /// heading for the subcommands help section (clap's `subcommand_help_heading`,
+    /// default `Commands`)
+    subcommand_help_heading: ?[]const u8 = null,
     /// when set (>0), help text wraps to this column count (clap's `term_width`)
     term_width: ?usize = null,
     color_choice: style.ColorChoice = .auto,
@@ -183,6 +189,20 @@ pub const Command = struct {
     pub fn version(self: Command, v: []const u8) Command {
         var c = self;
         c.version_str = v;
+        return c;
+    }
+
+    /// Rename the subcommand placeholder in usage (clap's `subcommand_value_name`).
+    pub fn subcommandValueName(self: Command, name: []const u8) Command {
+        var c = self;
+        c.subcommand_value_name = name;
+        return c;
+    }
+
+    /// Rename the subcommands help section heading (clap's `subcommand_help_heading`).
+    pub fn subcommandHelpHeading(self: Command, heading: []const u8) Command {
+        var c = self;
+        c.subcommand_help_heading = heading;
         return c;
     }
 

@@ -169,7 +169,7 @@ fn renderLong(allocator: std.mem.Allocator, cmd: *const Command) []const u8 {
     b.addByte('\n');
     if (hasListedSubcommands(cmd)) {
         b.addByte('\n');
-        sectionHeader(&b, "Commands:");
+        sectionHeader(&b, commandsHeader(allocator, cmd));
         longSection(&b, longCommands(allocator, cmd), cmd.term_width);
     }
     if (hasPositionals(cmd)) {
@@ -405,8 +405,14 @@ fn sortedSubcommandEntries(allocator: std.mem.Allocator, cmd: *const Command) []
 fn writeCommands(b: *Buf, cmd: *const Command) void {
     const entries = sortedSubcommandEntries(b.allocator, cmd);
     b.addByte('\n');
-    sectionHeader(b, "Commands:");
+    sectionHeader(b, commandsHeader(b.allocator, cmd));
     layout.table(b, 2, entries, cmd.term_width);
+}
+
+/// The subcommands section heading with its trailing colon (clap's
+/// `subcommand_help_heading`, default `Commands`).
+fn commandsHeader(allocator: std.mem.Allocator, cmd: *const Command) []const u8 {
+    return std.fmt.allocPrint(allocator, "{s}:", .{cmd.subcommand_help_heading orelse "Commands"}) catch oom();
 }
 
 // ----- Arguments (positionals) -----
@@ -475,7 +481,7 @@ fn writeHeadedSections(b: *Buf, cmd: *const Command) void {
 /// `write_all_args`).
 fn writeAllArgs(b: *Buf, cmd: *const Command, long: bool) void {
     var sections: std.ArrayListUnmanaged([]const u8) = .empty;
-    if (hasListedSubcommands(cmd)) sections.append(b.allocator, section(b.allocator, "Commands", tableStr(b.allocator, sortedSubcommandEntries(b.allocator, cmd), cmd.term_width))) catch oom();
+    if (hasListedSubcommands(cmd)) sections.append(b.allocator, section(b.allocator, cmd.subcommand_help_heading orelse "Commands", tableStr(b.allocator, sortedSubcommandEntries(b.allocator, cmd), cmd.term_width))) catch oom();
     if (hasPositionals(cmd)) sections.append(b.allocator, section(b.allocator, "Arguments", positionalRows(b.allocator, cmd, long))) catch oom();
     const opts = optionRows(b.allocator, cmd, long);
     if (opts.len != 0) sections.append(b.allocator, section(b.allocator, "Options", opts)) catch oom();

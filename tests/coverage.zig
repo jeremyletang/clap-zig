@@ -44,6 +44,9 @@ pub const entries = [_]Entry{
     .{ .file = "version.rs", .name = "mut_arg_version_no_auto_version", .status = .deferred, .note = "mut_arg (mutate auto version flag)" },
     .{ .file = "version.rs", .name = "propagate_version_no_version_info", .status = .deferred, .note = "debug_assert (propagate without version)" },
 
+    // ----- subcommand value-name / help-heading settings -----
+    .{ .file = "subcommands.rs", .name = "subcommand_placeholder_test", .status = .ported },
+
     // ----- trailing_var_arg -----
     .{ .file = "app_settings.rs", .name = "trailing_var_arg_with_hyphen_values_escape_first", .status = .ported },
     .{ .file = "app_settings.rs", .name = "trailing_var_arg_with_hyphen_values_escape_middle", .status = .ported },

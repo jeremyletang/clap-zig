@@ -198,10 +198,15 @@ pub const ArgMatches = struct {
         return m.indices.items;
     }
 
-    /// Number of occurrences of a `Count`-action argument (0 if absent).
+    /// Number of occurrences of a `Count`-action argument. Falls back to the
+    /// stored value when the arg is absent but carries a (conditional) default.
     pub fn getCount(self: *const ArgMatches, id: []const u8) usize {
         const m = self.map.getPtr(id) orelse return 0;
-        return m.occurrences;
+        if (m.occurrences > 0) return m.occurrences;
+        if (m.values.items.len > 0) {
+            return std.fmt.parseInt(usize, m.values.items[m.values.items.len - 1], 10) catch 0;
+        }
+        return 0;
     }
 
     pub fn subcommand(self: *const ArgMatches) ?Subcommand {

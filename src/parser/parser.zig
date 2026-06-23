@@ -598,9 +598,12 @@ const Parser = struct {
             } else if (a.action_val == .set_false) {
                 self.pushVal(a.id, "false");
             } else if (a.action_val == .count) {
-                // Count keeps only the latest index (value unused; getCount reads occurrences)
+                // Count stores the running total as its value (clap: the count IS
+                // the value, so getOne/default_value_if read it); occurrences track
+                // it too. Keep only the latest value/index.
                 self.matches.clearValues(a.id);
-                self.pushVal(a.id, "");
+                const n = self.matches.getCount(a.id);
+                self.pushVal(a.id, std.fmt.allocPrint(self.allocator, "{d}", .{n}) catch @panic("clap: OOM"));
             }
             return;
         }

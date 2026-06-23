@@ -34,15 +34,13 @@ test "escaped-positional: help" {
 }
 
 test "escaped-positional: baseline (no args)" {
-    try expectRun(&.{}, 0,
-        "-f used: false\n" ++
+    try expectRun(&.{}, 0, "-f used: false\n" ++
         "-p's value: (none)\n" ++
         "'slops' values: (none)\n");
 }
 
 test "escaped-positional: positional before -- is rejected" {
-    try expectRun(&.{ "foo", "bar" }, 2,
-        "error: unexpected argument 'foo' found\n" ++
+    try expectRun(&.{ "foo", "bar" }, 2, "error: unexpected argument 'foo' found\n" ++
         "\n" ++
         "Usage: escaped-positional [OPTIONS] [-- <SLOP>...]\n" ++
         "\n" ++
@@ -50,15 +48,13 @@ test "escaped-positional: positional before -- is rejected" {
 }
 
 test "escaped-positional: flags then escaped slop" {
-    try expectRun(&.{ "-f", "-p=bob", "--", "sloppy", "slop", "slop" }, 0,
-        "-f used: true\n" ++
+    try expectRun(&.{ "-f", "-p=bob", "--", "sloppy", "slop", "slop" }, 0, "-f used: true\n" ++
         "-p's value: bob\n" ++
         "'slops' values: sloppy, slop, slop\n");
 }
 
 test "escaped-positional: everything after -- passes through" {
-    try expectRun(&.{ "--", "-f", "-p=bob", "sloppy", "slop", "slop" }, 0,
-        "-f used: false\n" ++
+    try expectRun(&.{ "--", "-f", "-p=bob", "sloppy", "slop", "slop" }, 0, "-f used: false\n" ++
         "-p's value: (none)\n" ++
         "'slops' values: -f, -p=bob, sloppy, slop, slop\n");
 }

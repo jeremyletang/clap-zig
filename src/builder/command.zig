@@ -1,6 +1,7 @@
 const std = @import("std");
 const arg = @import("arg.zig");
 const arg_group = @import("arg_group.zig");
+const style = @import("../output/style.zig");
 
 const Arg = arg.Arg;
 const ArgGroup = arg_group.ArgGroup;
@@ -32,6 +33,7 @@ pub const Command = struct {
     usage_override: ?[]const u8 = null,
     /// when set (>0), help text wraps to this column count (clap's `term_width`)
     term_width: ?usize = null,
+    color_choice: style.ColorChoice = .auto,
     /// the heading stamped onto subsequently-added args (clap's `next_help_heading`)
     current_help_heading: ?[]const u8 = null,
     before_help_text: ?[]const u8 = null,
@@ -155,6 +157,17 @@ pub const Command = struct {
         var c = self;
         c.term_width = n;
         return c;
+    }
+
+    /// When to emit ANSI styling (clap's `color`); propagates to subcommands.
+    pub fn color(self: Command, choice: style.ColorChoice) Command {
+        var c = self;
+        c.color_choice = choice;
+        return c;
+    }
+
+    pub fn getColor(self: *const Command) style.ColorChoice {
+        return self.color_choice;
     }
 
     /// The about text for help: the long about in `--help` (if set), else the
@@ -319,6 +332,7 @@ pub const Command = struct {
             if (a.is_global) globals.append(self.allocator, a.*) catch @panic("clap: OOM building command");
         }
         for (self.subcommands.items) |*sc| {
+            sc.color_choice = self.color_choice; // color is global (clap)
             const child = std.fmt.allocPrint(self.allocator, "{s} {s}", .{ path, sc.name }) catch
                 @panic("clap: OOM building command");
             sc.propagate(child, globals.items);

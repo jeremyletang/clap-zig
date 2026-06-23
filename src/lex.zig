@@ -3,7 +3,6 @@ const std = @import("std");
 /// Lightweight lexer over the raw argv, modeled on clap's `clap_lex` crate:
 /// https://github.com/clap-rs/clap/blob/master/clap_lex/src/lib.rs
 /// Classifies a single token and provides a peekable cursor.
-
 pub const Long = struct {
     /// flag name with the leading `--` stripped, up to the first `=`
     name: []const u8,

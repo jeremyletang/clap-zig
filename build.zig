@@ -26,6 +26,7 @@ pub fn build(b: *std.Build) void {
         .target = target,
         .optimize = optimize,
     });
+    harness.addImport("clap", clap);
 
     // examples are exposed as modules so the exes and the integration tests share them
     const git_mod = addExample(b, clap, harness, "git", "git", "examples/git.zig");

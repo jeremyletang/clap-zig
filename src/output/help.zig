@@ -77,7 +77,7 @@ fn emitTag(b: *Buf, cmd: *const Command, tag: []const u8, long: bool) void {
             b.add("\n\n");
         }
     } else if (eq(u8, tag, "usage-heading")) {
-        b.add("Usage:");
+        b.role(.usage, "Usage:");
     } else if (eq(u8, tag, "usage")) {
         b.add(cmd.usage_override orelse usage.appendBody(b.allocator, cmd, true));
     } else if (eq(u8, tag, "all-args")) {
@@ -168,14 +168,17 @@ fn renderLong(allocator: std.mem.Allocator, cmd: *const Command) []const u8 {
     b.add(usage.render(allocator, cmd));
     b.addByte('\n');
     if (hasListedSubcommands(cmd)) {
-        b.add("\nCommands:\n");
+        b.addByte('\n');
+        sectionHeader(&b, "Commands:");
         longSection(&b, longCommands(allocator, cmd), cmd.term_width);
     }
     if (hasPositionals(cmd)) {
-        b.add("\nArguments:\n");
+        b.addByte('\n');
+        sectionHeader(&b, "Arguments:");
         longSection(&b, longArguments(allocator, cmd), cmd.term_width);
     }
-    b.add("\nOptions:\n");
+    b.addByte('\n');
+    sectionHeader(&b, "Options:");
     longSection(&b, longOptions(allocator, cmd), cmd.term_width);
     appendAfterHelp(&b, cmd.after_long_help_text orelse cmd.after_help_text);
     return b.items();
@@ -211,10 +214,10 @@ fn longCommands(allocator: std.mem.Allocator, cmd: *const Command) []const LongE
     var entries: std.ArrayListUnmanaged(LongEntry) = .empty;
     for (cmd.subcommands.items) |*sc| {
         if (sc.is_hidden) continue;
-        entries.append(allocator, .{ .term = sc.name, .help = sc.about_text orelse "" }) catch oom();
+        entries.append(allocator, .{ .term = lit(allocator, sc.name), .help = sc.about_text orelse "" }) catch oom();
     }
     if (!cmd.disable_help_subcommand) {
-        entries.append(allocator, .{ .term = "help", .help = help_about }) catch oom();
+        entries.append(allocator, .{ .term = lit(allocator, "help"), .help = help_about }) catch oom();
     }
     return entries.items;
 }
@@ -244,10 +247,10 @@ fn longOptions(allocator: std.mem.Allocator, cmd: *const Command) []const LongEn
         }) catch oom();
     }
     if (!cmd.disable_help_flag) {
-        entries.append(allocator, .{ .term = "-h, --help", .help = "Print help (see a summary with '-h')" }) catch oom();
+        entries.append(allocator, .{ .term = flagTerm(allocator, "-h", "--help"), .help = "Print help (see a summary with '-h')" }) catch oom();
     }
     if (cmd.hasVersionFlag()) {
-        entries.append(allocator, .{ .term = "-V, --version", .help = "Print version" }) catch oom();
+        entries.append(allocator, .{ .term = flagTerm(allocator, "-V", "--version"), .help = "Print version" }) catch oom();
     }
     return entries.items;
 }
@@ -259,7 +262,8 @@ fn renderFlattened(b: *Buf, cmd: *const Command) void {
         b.add(t);
         b.add("\n\n");
     }
-    b.add("Usage: ");
+    b.role(.usage, "Usage:");
+    b.addByte(' ');
     b.add(usage.appendBody(b.allocator, cmd, false));
     b.addByte('\n');
     for (cmd.subcommands.items) |*sc| usageLine(b, sc);
@@ -377,10 +381,10 @@ fn sortedOptionEntries(allocator: std.mem.Allocator, cmd: *const Command, includ
     }
     if (!cmd.disable_help_flag) {
         const ht = if (hasLongHelp(cmd)) "Print help (see more with '--help')" else help_flag_help;
-        rows.append(allocator, .{ .ord = cmd.builtinOrder(), .key = "h0", .entry = .{ .term = "-h, --help", .help = ht } }) catch oom();
+        rows.append(allocator, .{ .ord = cmd.builtinOrder(), .key = "h0", .entry = .{ .term = flagTerm(allocator, "-h", "--help"), .help = ht } }) catch oom();
     }
     if (cmd.hasVersionFlag()) {
-        rows.append(allocator, .{ .ord = versionOrd(cmd), .key = "v1", .entry = .{ .term = "-V, --version", .help = "Print version" } }) catch oom();
+        rows.append(allocator, .{ .ord = versionOrd(cmd), .key = "v1", .entry = .{ .term = flagTerm(allocator, "-V", "--version"), .help = "Print version" } }) catch oom();
     }
     return sortedEntries(allocator, rows.items);
 }
@@ -390,10 +394,10 @@ fn sortedSubcommandEntries(allocator: std.mem.Allocator, cmd: *const Command) []
     var rows: std.ArrayListUnmanaged(SortRow) = .empty;
     for (cmd.subcommands.items) |*sc| {
         if (sc.is_hidden) continue;
-        rows.append(allocator, .{ .ord = sc.disp_ord orelse 999, .key = sc.name, .entry = .{ .term = sc.name, .help = subcommandHelp(allocator, sc) } }) catch oom();
+        rows.append(allocator, .{ .ord = sc.disp_ord orelse 999, .key = sc.name, .entry = .{ .term = lit(allocator, sc.name), .help = subcommandHelp(allocator, sc) } }) catch oom();
     }
     if (!cmd.disable_help_subcommand) {
-        rows.append(allocator, .{ .ord = cmd.builtinOrder(), .key = "help", .entry = .{ .term = "help", .help = help_about } }) catch oom();
+        rows.append(allocator, .{ .ord = cmd.builtinOrder(), .key = "help", .entry = .{ .term = lit(allocator, "help"), .help = help_about } }) catch oom();
     }
     return sortedEntries(allocator, rows.items);
 }
@@ -401,7 +405,7 @@ fn sortedSubcommandEntries(allocator: std.mem.Allocator, cmd: *const Command) []
 fn writeCommands(b: *Buf, cmd: *const Command) void {
     const entries = sortedSubcommandEntries(b.allocator, cmd);
     b.addByte('\n');
-    b.add("Commands:\n");
+    sectionHeader(b, "Commands:");
     layout.table(b, 2, entries, cmd.term_width);
 }
 
@@ -411,7 +415,7 @@ fn writeArguments(b: *Buf, cmd: *const Command) void {
     var entries: std.ArrayListUnmanaged(Entry) = .empty;
     collectPositionals(b.allocator, cmd, &entries);
     b.addByte('\n');
-    b.add("Arguments:\n");
+    sectionHeader(b, "Arguments:");
     layout.table(b, 2, entries.items, cmd.term_width);
 }
 
@@ -433,7 +437,7 @@ fn writeOptions(b: *Buf, cmd: *const Command) void {
     const entries = sortedOptionEntries(b.allocator, cmd, false, false);
     if (entries.len != 0) {
         b.addByte('\n');
-        b.add("Options:\n");
+        sectionHeader(b, "Options:");
         layout.table(b, 2, entries, cmd.term_width);
     }
     writeHeadedSections(b, cmd);
@@ -459,8 +463,7 @@ fn writeHeadedSections(b: *Buf, cmd: *const Command) void {
             entries.append(b.allocator, .{ .term = term, .help = argHelp(b.allocator, x) }) catch oom();
         }
         b.addByte('\n');
-        b.add(heading);
-        b.add(":\n");
+        sectionHeader(b, std.fmt.allocPrint(b.allocator, "{s}:", .{heading}) catch oom());
         layout.table(b, 2, entries.items, cmd.term_width);
     }
 }
@@ -483,9 +486,13 @@ fn writeAllArgs(b: *Buf, cmd: *const Command, long: bool) void {
     }
 }
 
-/// "Header:\n" + rows with the trailing newline trimmed (for joining).
+/// Styled "Header:\n" + rows with the trailing newline trimmed (for joining).
 fn section(allocator: std.mem.Allocator, header: []const u8, rows: []const u8) []const u8 {
-    return std.fmt.allocPrint(allocator, "{s}:\n{s}", .{ header, std.mem.trimEnd(u8, rows, "\n") }) catch oom();
+    var b = Buf{ .allocator = allocator };
+    b.role(.header, std.fmt.allocPrint(allocator, "{s}:", .{header}) catch oom());
+    b.addByte('\n');
+    b.add(std.mem.trimEnd(u8, rows, "\n"));
+    return b.items();
 }
 
 fn appendHeadingSections(allocator: std.mem.Allocator, cmd: *const Command, sections: *std.ArrayListUnmanaged([]const u8), long: bool) void {
@@ -549,10 +556,10 @@ fn collectOptions(allocator: std.mem.Allocator, cmd: *const Command, entries: *s
     }
     if (!cmd.disable_help_flag) {
         const ht = if (hasLongHelp(cmd)) "Print help (see more with '--help')" else help_flag_help;
-        entries.append(allocator, .{ .term = "-h, --help", .help = ht }) catch oom();
+        entries.append(allocator, .{ .term = flagTerm(allocator, "-h", "--help"), .help = ht }) catch oom();
     }
     if (cmd.hasVersionFlag()) {
-        entries.append(allocator, .{ .term = "-V, --version", .help = "Print version" }) catch oom();
+        entries.append(allocator, .{ .term = flagTerm(allocator, "-V", "--version"), .help = "Print version" }) catch oom();
     }
 }
 
@@ -560,17 +567,38 @@ fn oom() noreturn {
     @panic("clap: OOM rendering output");
 }
 
+/// Emit a styled section header (`Options:`, `Commands:`, …) plus its newline.
+fn sectionHeader(b: *Buf, title: []const u8) void {
+    b.role(.header, title);
+    b.addByte('\n');
+}
+
+/// The styled term for a fixed short+long flag pair (e.g. `-h, --help`), each
+/// flag a literal span.
+fn flagTerm(allocator: std.mem.Allocator, short: []const u8, long: []const u8) []const u8 {
+    var b = Buf{ .allocator = allocator };
+    b.role(.literal, short);
+    b.add(", ");
+    b.role(.literal, long);
+    return b.items();
+}
+
+/// `s` as a single literal span (e.g. a subcommand name).
+fn lit(allocator: std.mem.Allocator, s: []const u8) []const u8 {
+    var b = Buf{ .allocator = allocator };
+    b.role(.literal, s);
+    return b.items();
+}
+
 fn optionTerm(allocator: std.mem.Allocator, a: *const Arg) []const u8 {
     var b = Buf{ .allocator = allocator };
     if (a.short_char) |c| {
-        if (a.long_name != null) b.print("-{c}, ", .{c}) else b.print("-{c}", .{c});
+        b.role(.literal, std.fmt.allocPrint(allocator, "-{c}", .{c}) catch oom());
+        if (a.long_name != null) b.add(", ");
     } else {
         b.spaces(4);
     }
-    if (a.long_name) |l| {
-        b.add("--");
-        b.add(l);
-    }
+    if (a.long_name) |l| b.role(.literal, std.fmt.allocPrint(allocator, "--{s}", .{l}) catch oom());
     appendValueNotation(&b, a);
     if (a.action_val == .count) b.add("...");
     return b.items();

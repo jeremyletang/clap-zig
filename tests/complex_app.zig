@@ -37,13 +37,13 @@ pub fn complexApp(a: std.mem.Allocator) Command {
         .arg(Arg.fromUsage("--optvaleq <optval>", "Tests optional value, require = sign").numArgs(range.between(0, 1)).requireEquals(true))
         .arg(Arg.fromUsage("--optvalnoeq <optval>", "Tests optional value").numArgs(range.between(0, 1)))
         .subcommand(Command.init(a, "subcmd")
-            .about("tests subcommands")
-            .version("0.1")
-            .author("Kevin K. <kbknapp@gmail.com>")
-            .helpTemplate(FULL_TEMPLATE)
-            .arg(Arg.fromUsage("-o --option <scoption>", "tests options").numArgs(range.atLeast(1)))
-            .arg(Arg.fromUsage("-s --subcmdarg <subcmdarg>", "tests other args"))
-            .arg(Arg.fromUsage("[scpositional]", "tests positionals")));
+        .about("tests subcommands")
+        .version("0.1")
+        .author("Kevin K. <kbknapp@gmail.com>")
+        .helpTemplate(FULL_TEMPLATE)
+        .arg(Arg.fromUsage("-o --option <scoption>", "tests options").numArgs(range.atLeast(1)))
+        .arg(Arg.fromUsage("-s --subcmdarg <subcmdarg>", "tests other args"))
+        .arg(Arg.fromUsage("[scpositional]", "tests positionals")));
 }
 
 const Buf = struct {

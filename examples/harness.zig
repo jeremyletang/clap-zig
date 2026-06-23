@@ -2,6 +2,7 @@
 //! Not part of the clap library — just keeps the example programs tidy.
 
 const std = @import("std");
+const clap = @import("clap");
 
 /// In clap these come from the `command!()` macro reading package metadata; the
 /// tutorial examples rely on them, so we supply matching constants for byte-exact output.
@@ -36,6 +37,17 @@ pub fn execMain(
     const raw = try init.minimal.args.toSlice(allocator);
     var argv: std.ArrayList([]const u8) = .empty;
     for (raw) |arg_z| try argv.append(allocator, arg_z);
+
+    // Resolve colour per cli_policies.txt for stdout and apply it for the whole
+    // render (the examples' plain `clap.renderError`/`renderHelp` calls pick up
+    // the active styles). Default ColorChoice is Auto.
+    const env = init.environ_map;
+    const is_tty = (std.Io.File.stdout().isTty(init.io)) catch false;
+    var styles = clap.Styles.styled();
+    if (clap.colorEnabled(.auto, env.get("NO_COLOR") != null, env.get("CLICOLOR_FORCE") != null, env.get("TERM"), is_tty)) {
+        clap.setColorStyles(&styles);
+    }
+    defer clap.setColorStyles(null);
 
     var out: std.ArrayList(u8) = .empty;
     const code = runFn(allocator, argv.items[1..], &out);

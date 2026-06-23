@@ -17,6 +17,16 @@ pub const Entry = struct {
 };
 
 pub const entries = [_]Entry{
+    // ----- allow_hyphen_values / allow_negative_numbers -----
+    .{ .file = "app_settings.rs", .name = "leading_hyphen_short", .status = .ported },
+    .{ .file = "app_settings.rs", .name = "leading_hyphen_long", .status = .ported },
+    .{ .file = "app_settings.rs", .name = "leading_hyphen_opt", .status = .ported },
+    .{ .file = "app_settings.rs", .name = "allow_negative_numbers_success", .status = .ported },
+    .{ .file = "app_settings.rs", .name = "allow_negative_numbers_fail", .status = .ported },
+    .{ .file = "opts.rs", .name = "leading_hyphen_pass", .status = .ported },
+    .{ .file = "positionals.rs", .name = "issue_946", .status = .ported },
+    .{ .file = "app_settings.rs", .name = "issue_1437_allow_hyphen_values_for_positional_arg", .status = .deferred, .note = "exact fixture untested (simplified variant ported)" },
+
     // ----- env.rs (Arg.env fallback via injected EnvSource) -----
     .{ .file = "env.rs", .name = "env", .status = .ported },
     .{ .file = "env.rs", .name = "no_env", .status = .ported },
@@ -191,7 +201,6 @@ pub const entries = [_]Entry{
     .{ .file = "opts.rs", .name = "lots_o_vals", .status = .deferred, .note = "multi-value options (num_args>1)" },
     .{ .file = "opts.rs", .name = "require_delims_no_delim", .status = .deferred, .note = "value_delimiter num_args greediness" },
     .{ .file = "opts.rs", .name = "require_delims", .status = .deferred, .note = "value_delimiter num_args greediness" },
-    .{ .file = "opts.rs", .name = "leading_hyphen_pass", .status = .deferred, .note = "allow_hyphen_values" },
 
     // ----- flags.rs -----
     .{ .file = "flags.rs", .name = "flag_using_short", .status = .ported },
@@ -226,7 +235,6 @@ pub const entries = [_]Entry{
     .{ .file = "positionals.rs", .name = "last_positional", .status = .ported },
     .{ .file = "positionals.rs", .name = "last_positional_no_double_dash", .status = .ported },
     .{ .file = "positionals.rs", .name = "last_positional_second_to_last_mult", .status = .ported },
-    .{ .file = "positionals.rs", .name = "issue_946", .status = .deferred, .note = "allow_hyphen_values" },
     .{ .file = "positionals.rs", .name = "missing_required", .status = .deferred, .note = "debug_assert" },
     .{ .file = "positionals.rs", .name = "positional_arg_with_long", .status = .deferred, .note = "debug_assert" },
     .{ .file = "positionals.rs", .name = "positional_arg_with_short", .status = .deferred, .note = "debug_assert" },

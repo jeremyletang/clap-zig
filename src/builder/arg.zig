@@ -77,6 +77,8 @@ pub const Arg = struct {
     overrides: ?[]const []const u8 = null,
     is_exclusive: bool = false,
     is_global: bool = false,
+    allow_hyphen_values: bool = false,
+    allow_negative_numbers: bool = false,
     is_hidden: bool = false,
     hide_short_help: bool = false,
     hide_long_help: bool = false,
@@ -373,6 +375,28 @@ pub const Arg = struct {
         return a;
     }
 
+    /// Accept values that look like flags (`-x`, `--y`) for this arg (clap's
+    /// `allow_hyphen_values`).
+    pub fn allowHyphenValues(self: Arg, yes: bool) Arg {
+        var a = self;
+        a.allow_hyphen_values = yes;
+        return a;
+    }
+
+    /// Accept negative-number values (`-20`, `-1.2`) for this arg, while other
+    /// `-`-tokens are still flags (clap's `allow_negative_numbers`).
+    pub fn allowNegativeNumbers(self: Arg, yes: bool) Arg {
+        var a = self;
+        a.allow_negative_numbers = yes;
+        return a;
+    }
+
+    /// Whether a leading-`-` `token` should be taken as a value for this arg.
+    pub fn acceptsHyphenValue(self: *const Arg, token: []const u8) bool {
+        if (self.allow_hyphen_values) return true;
+        return self.allow_negative_numbers and isNegativeNumber(token);
+    }
+
     /// Omit this argument from help output and usage (clap's `hide`).
     pub fn hide(self: Arg, yes: bool) Arg {
         var a = self;
@@ -530,6 +554,13 @@ pub const Arg = struct {
         return null;
     }
 };
+
+/// Whether `s` is a negative number (`-20`, `-1.2`) — for `allow_negative_numbers`.
+pub fn isNegativeNumber(s: []const u8) bool {
+    if (s.len < 2 or s[0] != '-') return false;
+    _ = std.fmt.parseFloat(f64, s) catch return false;
+    return true;
+}
 
 const testing = std.testing;
 

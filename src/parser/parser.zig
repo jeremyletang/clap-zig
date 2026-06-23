@@ -158,7 +158,16 @@ const Parser = struct {
                             self.consumeOptValue(token);
                             continue;
                         },
-                        else => if (self.finalizePending()) |e| return .{ .err = e },
+                        // a flag-looking token ends the option — unless the option
+                        // accepts hyphen values, in which case it's another value
+                        else => {
+                            const opt = self.cmd.findArgById(self.state.opt).?;
+                            if (opt.acceptsHyphenValue(token)) {
+                                self.consumeOptValue(token);
+                                continue;
+                            }
+                            if (self.finalizePending()) |e| return .{ .err = e };
+                        },
                     }
                 }
                 if (self.state == .values_done) {
@@ -172,16 +181,21 @@ const Parser = struct {
                         .err => |e| return .{ .err = e },
                     }
                 }
-                if (self.handleFlagsAndOptions(token, parsed)) |outcome| {
-                    switch (outcome) {
-                        .consumed => continue,
-                        .ret => |o| return o,
-                        .fall_through => {},
-                        .flag_sub => |fs| {
-                            subcmd_name = fs.name;
-                            self.flag_sub_inject = fs.inject;
-                            break;
-                        },
+                // a leading-`-` token goes to the next positional when that
+                // positional accepts hyphen values (clap's allow_hyphen_values /
+                // allow_negative_numbers), bypassing flag parsing
+                if (!self.hyphenPositional(token, parsed)) {
+                    if (self.handleFlagsAndOptions(token, parsed)) |outcome| {
+                        switch (outcome) {
+                            .consumed => continue,
+                            .ret => |o| return o,
+                            .fall_through => {},
+                            .flag_sub => |fs| {
+                                subcmd_name = fs.name;
+                                self.flag_sub_inject = fs.inject;
+                                break;
+                            },
+                        }
                     }
                 }
             }
@@ -237,6 +251,39 @@ const Parser = struct {
         const r = a.effectiveNumArgs();
         if (self.pending_count >= r.min) return null;
         return self.numValsError(a, r, self.pending_count);
+    }
+
+    /// Whether a leading-`-` `token` should fill the next positional instead of
+    /// being parsed as a flag (the positional has allow_hyphen_values / accepts
+    /// this negative number). Excludes the `--` escape and lone `-`.
+    fn hyphenPositional(self: *Parser, token: []const u8, parsed: lex.ParsedArg) bool {
+        if (self.state != .values_done) return false;
+        if (token.len < 2 or token[0] != '-') return false;
+        if (std.mem.eql(u8, token, "--")) return false;
+        if (self.isRecognizedFlag(parsed)) return false; // defined flags still win
+        const p = self.cmd.getPositional(self.pos_counter) orelse return false;
+        return p.acceptsHyphenValue(token);
+    }
+
+    /// Whether `parsed` names a defined option/flag (incl. the auto help/version
+    /// flags and flag subcommands) — such tokens are never hyphen-value fodder.
+    fn isRecognizedFlag(self: *Parser, parsed: lex.ParsedArg) bool {
+        switch (parsed) {
+            .long => |l| {
+                if (self.cmd.findArgByLong(l.name) != null) return true;
+                if (!self.cmd.disable_help_flag and std.mem.eql(u8, l.name, "help")) return true;
+                if (self.cmd.hasVersionFlag() and std.mem.eql(u8, l.name, "version")) return true;
+                return self.cmd.findFlagSubcommandLong(l.name) != null;
+            },
+            .short => |s| {
+                const c = s[0];
+                if (self.cmd.findArgByShort(c) != null) return true;
+                if (!self.cmd.disable_help_flag and c == 'h') return true;
+                if (self.cmd.hasVersionFlag() and c == 'V') return true;
+                return self.cmd.findFlagSubcommandShort(c) != null;
+            },
+            else => return false,
+        }
     }
 
     // ----- token dispatch -----

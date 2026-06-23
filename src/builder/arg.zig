@@ -45,6 +45,11 @@ pub const Arg = struct {
     action_val: ArgAction = .set,
     num_args: ?range.ValueRange = null,
     value_delimiter: ?u8 = null,
+    /// a token that ends value collection for this arg (clap's `value_terminator`)
+    value_terminator: ?[]const u8 = null,
+    /// once this (variadic) positional starts collecting, every later token —
+    /// flags, `--`, hyphen values — is a literal value (clap's `trailing_var_arg`)
+    trailing_var_arg: bool = false,
     /// help section heading (null = the default `Options:` section). `*_set`
     /// distinguishes "explicitly set" (incl. to null) from "inherit the
     /// command's current `next_help_heading`".
@@ -250,6 +255,22 @@ pub const Arg = struct {
     pub fn valueDelimiter(self: Arg, c: u8) Arg {
         var a = self;
         a.value_delimiter = c;
+        return a;
+    }
+
+    /// A token that ends value collection for this arg; it is consumed but not
+    /// stored, and following tokens fill later args (clap's `value_terminator`).
+    pub fn valueTerminator(self: Arg, term: []const u8) Arg {
+        var a = self;
+        a.value_terminator = term;
+        return a;
+    }
+
+    /// Treat every token after this positional's first value as a literal value,
+    /// including flags and `--` (clap's `trailing_var_arg`).
+    pub fn trailingVarArg(self: Arg, yes: bool) Arg {
+        var a = self;
+        a.trailing_var_arg = yes;
         return a;
     }
 

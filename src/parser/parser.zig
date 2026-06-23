@@ -7,6 +7,8 @@ const validator = @import("validator.zig");
 const errors = @import("../error.zig");
 const env = @import("../env.zig");
 const suggest = @import("../suggest.zig");
+const range = @import("../builder/range.zig");
+const layout = @import("../output/layout.zig");
 
 const Command = command.Command;
 const Arg = arg.Arg;
@@ -155,6 +157,15 @@ const Parser = struct {
                 // While collecting an option's values, a plain value continues it;
                 // a flag/escape ends it (verify the count) before being handled.
                 if (self.state == .opt) {
+                    // a value_terminator ends collection and is itself consumed
+                    // (takes precedence over allow_hyphen_values)
+                    const pending = self.cmd.findArgById(self.state.opt).?;
+                    if (pending.value_terminator) |term| {
+                        if (std.mem.eql(u8, token, term)) {
+                            if (self.finalizePending()) |e| return .{ .err = e };
+                            continue;
+                        }
+                    }
                     switch (parsed) {
                         .value, .stdio => {
                             self.consumeOptValue(token);
@@ -533,8 +544,29 @@ const Parser = struct {
             if (a.last_flag and !self.trailing) {
                 return .{ .err = self.mkErr(.unknown_argument, token, null) };
             }
+            // a value_terminator ends this positional and is consumed; later
+            // tokens fall to the next positional slot
+            if (a.value_terminator) |term| {
+                if (std.mem.eql(u8, token, term)) {
+                    self.pos_counter += 1;
+                    return .cont;
+                }
+            }
+            // a bounded-range positional (e.g. `1..=3`) rejects the value past its
+            // max; a fixed-count one (`3`) over-fills and is caught post-parse so
+            // the error reports the total count (clap's two distinct behaviors)
+            const r = a.effectiveNumArgs();
+            if (a.isMultiple() and r.max != range.ValueRange.unbounded and r.min != r.max) {
+                const have = if (self.matches.getRaw(a.id)) |v| v.len else 0;
+                if (have >= r.max) {
+                    return .{ .err = .{ .kind = .too_many_values, .cmd = self.cmd, .arg = layout.positionalNotationStr(self.allocator, a), .value = token } };
+                }
+            }
             self.recordArg(a, &.{token}, .command_line);
             self.valid_arg_found = true;
+            // a trailing-var-arg positional swallows everything after its first
+            // value (flags, `--`, hyphen values) as literal values
+            if (a.trailing_var_arg) self.trailing = true;
             if (!a.isMultiple()) self.pos_counter += 1;
             return .cont;
         }

@@ -189,10 +189,21 @@ fn newlineIndent(allocator: std.mem.Allocator, out: *std.ArrayListUnmanaged(u8),
 /// The value notation for a positional as shown in usage / the Arguments table:
 /// `<NAME>` (required) or `[NAME]` (optional), with a trailing `...` if variadic.
 pub fn positionalNotation(buf: *Buf, a: *const Arg) void {
-    buf.add(if (a.required_flag) "<" else "[");
-    buf.add(a.value_name orelse a.id);
-    buf.add(if (a.required_flag) ">" else "]");
-    if (a.showsEllipsis()) buf.add("...");
+    const r = a.effectiveNumArgs();
+    const open = if (a.required_flag) "<" else "[";
+    const close = if (a.required_flag) ">" else "]";
+    const name = a.value_name orelse a.id;
+    // a fixed-count positional repeats its slot (`[pos] [pos] [pos]`); a bounded
+    // range or unbounded one shows a single slot with a trailing `...`
+    const reps = if (a.action_val == .append or a.action_val == .count) 1 else @max(r.min, 1);
+    var i: usize = 0;
+    while (i < reps) : (i += 1) {
+        if (i > 0) buf.addByte(' ');
+        buf.add(open);
+        buf.add(name);
+        buf.add(close);
+    }
+    if (a.showsEllipsis() or r.max > r.min) buf.add("...");
 }
 
 pub fn positionalNotationStr(allocator: std.mem.Allocator, a: *const Arg) []const u8 {

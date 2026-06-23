@@ -44,6 +44,17 @@ pub const entries = [_]Entry{
     .{ .file = "version.rs", .name = "mut_arg_version_no_auto_version", .status = .deferred, .note = "mut_arg (mutate auto version flag)" },
     .{ .file = "version.rs", .name = "propagate_version_no_version_info", .status = .deferred, .note = "debug_assert (propagate without version)" },
 
+    // ----- trailing_var_arg -----
+    .{ .file = "app_settings.rs", .name = "trailing_var_arg_with_hyphen_values_escape_first", .status = .ported },
+    .{ .file = "app_settings.rs", .name = "trailing_var_arg_with_hyphen_values_escape_middle", .status = .ported },
+    .{ .file = "app_settings.rs", .name = "trailing_var_arg_with_hyphen_values_short_first", .status = .ported },
+    .{ .file = "app_settings.rs", .name = "trailing_var_arg_with_hyphen_values_short_middle", .status = .ported },
+    .{ .file = "app_settings.rs", .name = "trailing_var_arg_with_hyphen_values_long_first", .status = .ported },
+    .{ .file = "app_settings.rs", .name = "trailing_var_arg_with_hyphen_values_long_middle", .status = .ported },
+    .{ .file = "app_settings.rs", .name = "dont_delim_values_trailingvararg", .status = .deferred, .note = "value_delimiter + trailing_var_arg interaction" },
+    .{ .file = "app_settings.rs", .name = "delim_values_trailingvararg", .status = .deferred, .note = "value_delimiter + trailing_var_arg interaction" },
+    .{ .file = "app_settings.rs", .name = "delim_values_trailingvararg_with_delim", .status = .deferred, .note = "value_delimiter + trailing_var_arg interaction" },
+
     // ----- did-you-mean suggestions -----
     .{ .file = "opts.rs", .name = "did_you_mean", .status = .ported },
     .{ .file = "opts.rs", .name = "issue_1073_suboptimal_flag_suggestion", .status = .ported },
@@ -377,10 +388,16 @@ pub const entries = [_]Entry{
     .{ .file = "multiple_values.rs", .name = "positional_min_more", .status = .ported },
     .{ .file = "multiple_values.rs", .name = "positional_max_exact", .status = .ported },
     .{ .file = "multiple_values.rs", .name = "positional_max_less", .status = .ported },
-    .{ .file = "multiple_values.rs", .name = "positional_exact_less", .status = .deferred, .note = "positional num_args enforcement" },
-    .{ .file = "multiple_values.rs", .name = "positional_exact_more", .status = .deferred, .note = "positional num_args enforcement" },
-    .{ .file = "multiple_values.rs", .name = "positional_min_less", .status = .deferred, .note = "positional num_args enforcement" },
-    .{ .file = "multiple_values.rs", .name = "positional_max_more", .status = .deferred, .note = "positional num_args enforcement" },
+    .{ .file = "multiple_values.rs", .name = "positional_exact_less", .status = .ported },
+    .{ .file = "multiple_values.rs", .name = "positional_exact_more", .status = .ported },
+    .{ .file = "multiple_values.rs", .name = "positional_min_less", .status = .ported },
+    .{ .file = "multiple_values.rs", .name = "positional_max_more", .status = .ported },
+    .{ .file = "multiple_values.rs", .name = "multiple_value_terminator_option", .status = .ported },
+    .{ .file = "multiple_values.rs", .name = "multiple_value_terminator_positional", .status = .ported },
+    .{ .file = "multiple_values.rs", .name = "value_terminator_has_higher_precedence_than_allow_hyphen_values", .status = .ported },
+    .{ .file = "multiple_values.rs", .name = "escape_like_value_terminator", .status = .deferred, .note = "value_terminator '--' escape-like edge cases" },
+    .{ .file = "multiple_values.rs", .name = "escape_like_value_terminator_and_allow_hyphen_values", .status = .deferred, .note = "value_terminator '--' escape-like edge cases" },
+    .{ .file = "multiple_values.rs", .name = "escape_like_value_terminator_and_last", .status = .deferred, .note = "value_terminator '--' + last" },
 
     // ----- help.rs (self-contained cases; complex_app/template/wrap/global ones pending) -----
     .{ .file = "help.rs", .name = "help_short", .status = .ported },

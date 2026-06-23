@@ -17,6 +17,40 @@ pub const Entry = struct {
 };
 
 pub const entries = [_]Entry{
+    // ----- flag_subcommands.rs (short_flag / long_flag subcommands) -----
+    .{ .file = "flag_subcommands.rs", .name = "flag_subcommand_normal", .status = .ported },
+    .{ .file = "flag_subcommands.rs", .name = "flag_subcommand_short", .status = .ported },
+    .{ .file = "flag_subcommands.rs", .name = "flag_subcommand_short_with_args", .status = .ported },
+    .{ .file = "flag_subcommands.rs", .name = "flag_subcommand_short_with_alias", .status = .ported },
+    .{ .file = "flag_subcommands.rs", .name = "flag_subcommand_long", .status = .ported },
+    .{ .file = "flag_subcommands.rs", .name = "flag_subcommand_long_with_aliases", .status = .ported },
+    .{ .file = "flag_subcommands.rs", .name = "flag_subcommand_short_after_long_arg", .status = .ported },
+    .{ .file = "flag_subcommands.rs", .name = "flag_subcommand_multiple", .status = .ported },
+    .{ .file = "flag_subcommands.rs", .name = "flag_subcommand_long_short_normal_usage_string", .status = .ported },
+    .{ .file = "flag_subcommands.rs", .name = "flag_subcommand_long_normal_usage_string", .status = .ported },
+    .{ .file = "flag_subcommands.rs", .name = "flag_subcommand_short_normal_usage_string", .status = .ported },
+    .{ .file = "flag_subcommands.rs", .name = "flag_subcommand_normal_with_alias", .status = .deferred, .note = "name-alias invocation (untested here)" },
+    .{ .file = "flag_subcommands.rs", .name = "flag_subcommand_long_with_alias", .status = .deferred, .note = "single long-flag alias (untested here)" },
+    .{ .file = "flag_subcommands.rs", .name = "flag_subcommand_short_with_aliases", .status = .deferred, .note = "covered by short_with_alias" },
+    .{ .file = "flag_subcommands.rs", .name = "flag_subcommand_normal_with_alias_vis_and_hidden", .status = .deferred, .note = "flag aliases in help listing" },
+    .{ .file = "flag_subcommands.rs", .name = "flag_subcommand_short_with_aliases_vis_and_hidden", .status = .deferred, .note = "flag aliases in help listing" },
+    .{ .file = "flag_subcommands.rs", .name = "flag_subcommand_long_with_aliases_vis_and_hidden", .status = .deferred, .note = "flag aliases in help listing" },
+    .{ .file = "flag_subcommands.rs", .name = "flag_subcommand_short_with_alias_hyphen", .status = .deferred, .note = "hyphen short-flag alias" },
+    .{ .file = "flag_subcommands.rs", .name = "flag_subcommand_short_with_aliases_hyphen", .status = .deferred, .note = "hyphen short-flag alias" },
+    .{ .file = "flag_subcommands.rs", .name = "flag_subcommand_short_with_alias_same_as_short_flag", .status = .deferred, .note = "debug_assert" },
+    .{ .file = "flag_subcommands.rs", .name = "flag_subcommand_long_with_alias_same_as_long_flag", .status = .deferred, .note = "debug_assert" },
+    .{ .file = "flag_subcommands.rs", .name = "flag_subcommand_short_conflict_with_arg", .status = .deferred, .note = "debug_assert" },
+    .{ .file = "flag_subcommands.rs", .name = "flag_subcommand_short_conflict_with_alias", .status = .deferred, .note = "debug_assert" },
+    .{ .file = "flag_subcommands.rs", .name = "flag_subcommand_long_conflict_with_alias", .status = .deferred, .note = "debug_assert" },
+    .{ .file = "flag_subcommands.rs", .name = "flag_subcommand_short_conflict_with_arg_alias", .status = .deferred, .note = "debug_assert" },
+    .{ .file = "flag_subcommands.rs", .name = "flag_subcommand_long_conflict_with_arg_alias", .status = .deferred, .note = "debug_assert" },
+    .{ .file = "flag_subcommands.rs", .name = "flag_subcommand_long_conflict_with_arg", .status = .deferred, .note = "debug_assert" },
+    .{ .file = "flag_subcommands.rs", .name = "flag_subcommand_conflict_with_help", .status = .deferred, .note = "debug_assert" },
+    .{ .file = "flag_subcommands.rs", .name = "flag_subcommand_conflict_with_version", .status = .deferred, .note = "debug_assert" },
+    .{ .file = "flag_subcommands.rs", .name = "flag_subcommand_long_infer_pass", .status = .deferred, .note = "infer_subcommands" },
+    .{ .file = "flag_subcommands.rs", .name = "flag_subcommand_long_infer_pass_close", .status = .deferred, .note = "infer_subcommands" },
+    .{ .file = "flag_subcommands.rs", .name = "flag_subcommand_long_infer_exact_match", .status = .deferred, .note = "infer_subcommands" },
+
     // ----- app_settings.rs (colour) -----
     .{ .file = "app_settings.rs", .name = "color_is_global", .status = .ported },
 

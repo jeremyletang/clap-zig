@@ -633,6 +633,7 @@ fn appendValueNotation(b: *Buf, a: *const Arg) void {
         b.add(" <");
         b.add(name);
         b.add(">");
+        if (a.showsEllipsis()) b.add("..."); // variadic / repeatable value
     }
 }
 

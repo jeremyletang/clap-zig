@@ -20,6 +20,13 @@ pub const Command = struct {
     bin_name: ?[]const u8 = null,
     aliases_list: ?[]const []const u8 = null,
     visible_aliases_list: ?[]const []const u8 = null,
+    // flag subcommands (clap's `short_flag`/`long_flag` + their aliases)
+    short_flag: ?u8 = null,
+    long_flag: ?[]const u8 = null,
+    short_flag_aliases_list: ?[]const u8 = null,
+    visible_short_flag_aliases_list: ?[]const u8 = null,
+    long_flag_aliases_list: ?[]const []const u8 = null,
+    visible_long_flag_aliases_list: ?[]const []const u8 = null,
     is_hidden: bool = false,
     /// this command's sort order as a subcommand (clap's `display_order`)
     disp_ord: ?usize = null,
@@ -87,6 +94,48 @@ pub const Command = struct {
         var c = self;
         c.visible_aliases_list = names;
         return c;
+    }
+
+    /// Invoke this subcommand via `-X` (clap's `short_flag`).
+    pub fn shortFlag(self: Command, c: u8) Command {
+        var s = self;
+        s.short_flag = c;
+        return s;
+    }
+
+    /// Invoke this subcommand via `--name` (clap's `long_flag`).
+    pub fn longFlag(self: Command, name: []const u8) Command {
+        var s = self;
+        s.long_flag = name;
+        return s;
+    }
+
+    /// Hidden short-flag aliases (clap's `short_flag_alias(es)`).
+    pub fn shortFlagAliases(self: Command, chars: []const u8) Command {
+        var s = self;
+        s.short_flag_aliases_list = chars;
+        return s;
+    }
+
+    /// Short-flag aliases shown in help (clap's `visible_short_flag_alias(es)`).
+    pub fn visibleShortFlagAliases(self: Command, chars: []const u8) Command {
+        var s = self;
+        s.visible_short_flag_aliases_list = chars;
+        return s;
+    }
+
+    /// Hidden long-flag aliases (clap's `long_flag_alias(es)`).
+    pub fn longFlagAliases(self: Command, names: []const []const u8) Command {
+        var s = self;
+        s.long_flag_aliases_list = names;
+        return s;
+    }
+
+    /// Long-flag aliases shown in help (clap's `visible_long_flag_alias(es)`).
+    pub fn visibleLongFlagAliases(self: Command, names: []const []const u8) Command {
+        var s = self;
+        s.visible_long_flag_aliases_list = names;
+        return s;
     }
 
     /// Longer "about" shown only in `--help` (clap's `long_about`).
@@ -418,6 +467,67 @@ pub const Command = struct {
             for (al) |x| if (std.mem.eql(u8, x, name)) return true;
         }
         return false;
+    }
+
+    /// A subcommand whose short flag (or short-flag alias) is `c`.
+    pub fn findFlagSubcommandShort(self: *const Command, c: u8) ?*const Command {
+        for (self.subcommands.items) |*sc| {
+            if (sc.matchesShortFlag(c)) return sc;
+        }
+        return null;
+    }
+
+    /// A subcommand whose long flag (or long-flag alias) is `name`.
+    pub fn findFlagSubcommandLong(self: *const Command, name: []const u8) ?*const Command {
+        for (self.subcommands.items) |*sc| {
+            if (sc.matchesLongFlag(name)) return sc;
+        }
+        return null;
+    }
+
+    fn matchesShortFlag(self: *const Command, c: u8) bool {
+        if (self.short_flag == c) return true;
+        if (self.short_flag_aliases_list) |al| {
+            for (al) |x| if (x == c) return true;
+        }
+        if (self.visible_short_flag_aliases_list) |al| {
+            for (al) |x| if (x == c) return true;
+        }
+        return false;
+    }
+
+    fn matchesLongFlag(self: *const Command, name: []const u8) bool {
+        if (self.long_flag) |l| if (std.mem.eql(u8, l, name)) return true;
+        if (self.long_flag_aliases_list) |al| {
+            for (al) |x| if (std.mem.eql(u8, x, name)) return true;
+        }
+        if (self.visible_long_flag_aliases_list) |al| {
+            for (al) |x| if (std.mem.eql(u8, x, name)) return true;
+        }
+        return false;
+    }
+
+    /// The binary name shown in this command's own usage line. For a flag
+    /// subcommand the trailing name segment becomes `{name|--long|-short}`
+    /// (clap's flag-subcommand usage name).
+    pub fn usageName(self: *const Command, allocator: std.mem.Allocator) []const u8 {
+        if (self.short_flag == null and self.long_flag == null) return self.displayName();
+        const base = self.bin_name orelse self.name;
+        const prefix = if (std.mem.lastIndexOfScalar(u8, base, ' ')) |i| base[0 .. i + 1] else "";
+        var b: std.ArrayListUnmanaged(u8) = .empty;
+        b.appendSlice(allocator, prefix) catch @panic("clap: OOM");
+        b.appendSlice(allocator, "{") catch @panic("clap: OOM");
+        b.appendSlice(allocator, self.name) catch @panic("clap: OOM");
+        if (self.long_flag) |l| {
+            b.appendSlice(allocator, "|--") catch @panic("clap: OOM");
+            b.appendSlice(allocator, l) catch @panic("clap: OOM");
+        }
+        if (self.short_flag) |c| {
+            b.appendSlice(allocator, "|-") catch @panic("clap: OOM");
+            b.append(allocator, c) catch @panic("clap: OOM");
+        }
+        b.appendSlice(allocator, "}") catch @panic("clap: OOM");
+        return b.items;
     }
 
     pub fn findGroup(self: *const Command, id: []const u8) ?*const ArgGroup {

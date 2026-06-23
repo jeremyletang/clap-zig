@@ -29,6 +29,10 @@ const ParseState = union(enum) {
     opt: []const u8,
 };
 
+/// A flag-subcommand dispatch: invoke `name`, re-injecting any leftover short
+/// cluster as `-<inject>` ahead of the remaining argv (clap's `-Sfp` chains).
+const FlagSub = struct { name: []const u8, inject: ?[]const u8 };
+
 /// Outcome of handling a single long/short token.
 const FlagResult = union(enum) {
     values_done,
@@ -36,6 +40,7 @@ const FlagResult = union(enum) {
     /// help requested; payload is whether long (`--help`) vs short (`-h`)
     help: bool,
     version,
+    flag_sub: FlagSub,
     err: Error,
 };
 
@@ -123,6 +128,8 @@ const Parser = struct {
     cur_idx: usize = 0,
     /// values collected so far for the pending option (`state == .opt`).
     pending_count: usize = 0,
+    /// leftover short cluster to re-inject when dispatching a flag subcommand.
+    flag_sub_inject: ?[]const u8 = null,
 
     fn loop(self: *Parser) Outcome {
         var subcmd_name: ?[]const u8 = null;
@@ -156,6 +163,11 @@ const Parser = struct {
                         .consumed => continue,
                         .ret => |o| return o,
                         .fall_through => {},
+                        .flag_sub => |fs| {
+                            subcmd_name = fs.name;
+                            self.flag_sub_inject = fs.inject;
+                            break;
+                        },
                     }
                 }
             }
@@ -196,6 +208,7 @@ const Parser = struct {
         consumed,
         ret: Outcome,
         fall_through,
+        flag_sub: FlagSub,
     };
 
     fn handleFlagsAndOptions(self: *Parser, token: []const u8, parsed: lex.ParsedArg) ?FlagDispatch {
@@ -227,6 +240,7 @@ const Parser = struct {
             },
             .help => |long| return .{ .ret = helpOutcome(self.cmd, long) },
             .version => return .{ .ret = versionOutcome(self.cmd) },
+            .flag_sub => |fs| return .{ .flag_sub = fs },
             .err => |e| return .{ .ret = .{ .err = e } },
         }
     }
@@ -269,11 +283,21 @@ const Parser = struct {
         }
         const sc = self.cmd.findSubcommand(name).?;
         const child = ArgMatches.create(self.allocator) catch @panic("clap: OOM matching");
+        // flag-subcommand dispatch re-injects the leftover short cluster as `-rest`
+        var child_cursor = lex.Cursor{ .args = self.cursor.args, .index = self.cursor.index };
+        if (self.flag_sub_inject) |rest| {
+            if (rest.len > 0) {
+                var list: std.ArrayListUnmanaged([]const u8) = .empty;
+                list.append(self.allocator, std.fmt.allocPrint(self.allocator, "-{s}", .{rest}) catch @panic("clap: OOM")) catch @panic("clap: OOM");
+                list.appendSlice(self.allocator, self.cursor.remaining()) catch @panic("clap: OOM");
+                child_cursor = lex.Cursor.init(list.items);
+            }
+        }
         var child_parser = Parser{
             .allocator = self.allocator,
             .cmd = sc,
             .matches = child,
-            .cursor = .{ .args = self.cursor.args, .index = self.cursor.index },
+            .cursor = child_cursor,
             .positional_count = sc.countPositionals(),
             .contains_last = hasLast(sc),
         };
@@ -308,8 +332,10 @@ const Parser = struct {
         {
             return .version;
         }
-        const a = self.cmd.findArgByLong(l.name) orelse
+        const a = self.cmd.findArgByLong(l.name) orelse {
+            if (self.cmd.findFlagSubcommandLong(l.name)) |sc| return .{ .flag_sub = .{ .name = sc.name, .inject = null } };
             return .{ .err = self.mkErr(.unknown_argument, self.dashed(l.name), null) };
+        };
         self.valid_arg_found = true;
         if (actionResult(a.action_val)) |r| return r;
         if (self.reuseError(a)) |e| return .{ .err = e };
@@ -335,8 +361,10 @@ const Parser = struct {
             if (self.cmd.hasVersionFlag() and c == 'V' and self.cmd.findArgByShort('V') == null) {
                 return .version;
             }
-            const a = self.cmd.findArgByShort(c) orelse
+            const a = self.cmd.findArgByShort(c) orelse {
+                if (self.cmd.findFlagSubcommandShort(c)) |sc| return .{ .flag_sub = .{ .name = sc.name, .inject = rest } };
                 return .{ .err = self.mkErr(.unknown_argument, self.shortDisplay(c), null) };
+            };
             self.valid_arg_found = true;
             if (actionResult(a.action_val)) |r| return r;
             if (self.reuseError(a)) |e| return .{ .err = e };

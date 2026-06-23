@@ -50,7 +50,7 @@ fn body(allocator: std.mem.Allocator, cmd: *const Command, used: []const []const
     }
 
     var b = Buf{ .allocator = allocator };
-    b.role(.literal, cmd.displayName());
+    b.role(.literal, cmd.usageName(allocator));
     for (parts.items) |p| {
         b.addByte(' ');
         b.add(p);

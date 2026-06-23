@@ -145,6 +145,21 @@ pub const Arg = struct {
         return false;
     }
 
+    /// Whether `prefix` is a prefix of this arg's long name or any of its long
+    /// aliases (clap's `infer_long_args` prefix matching).
+    pub fn anyLongStartsWith(self: *const Arg, prefix: []const u8) bool {
+        if (self.long_name) |l| {
+            if (std.mem.startsWith(u8, l, prefix)) return true;
+        }
+        if (self.aliases_list) |al| {
+            for (al) |x| if (std.mem.startsWith(u8, x, prefix)) return true;
+        }
+        if (self.visible_aliases_list) |al| {
+            for (al) |x| if (std.mem.startsWith(u8, x, prefix)) return true;
+        }
+        return false;
+    }
+
     /// Whether `c` matches this arg's short flag or any of its short aliases.
     pub fn matchesShort(self: *const Arg, c: u8) bool {
         if (self.short_char == c) return true;

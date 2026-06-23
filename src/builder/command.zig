@@ -64,6 +64,10 @@ pub const Command = struct {
     disable_help_subcommand: bool = false,
     disable_version_flag: bool = false,
     args_override_self: bool = false,
+    /// resolve an unambiguous subcommand prefix to its full name (clap's `infer_subcommands`)
+    infer_subcommands: bool = false,
+    /// resolve an unambiguous `--long` prefix to its full flag (clap's `infer_long_args`)
+    infer_long_args: bool = false,
 
     pub fn init(allocator: std.mem.Allocator, name: []const u8) Command {
         return .{ .allocator = allocator, .name = name };
@@ -363,6 +367,22 @@ pub const Command = struct {
         return c;
     }
 
+    /// Resolve an unambiguous subcommand-name prefix to the full subcommand
+    /// (clap's `infer_subcommands`).
+    pub fn inferSubcommands(self: Command, yes: bool) Command {
+        var c = self;
+        c.infer_subcommands = yes;
+        return c;
+    }
+
+    /// Resolve an unambiguous `--long` prefix to the full flag (clap's
+    /// `infer_long_args`).
+    pub fn inferLongArgs(self: Command, yes: bool) Command {
+        var c = self;
+        c.infer_long_args = yes;
+        return c;
+    }
+
     /// Suppress the automatic `-h/--help` flag (clap's `disable_help_flag`).
     pub fn disableHelpFlag(self: Command, yes: bool) Command {
         var c = self;
@@ -452,6 +472,21 @@ pub const Command = struct {
         return null;
     }
 
+    pub const ArgInfer = union(enum) { none, ambiguous, unique: *const Arg };
+
+    /// Ambiguity-aware prefix lookup over long names + aliases (infer_long_args).
+    /// An exact match is the caller's job (`findArgByLong`); this handles prefixes.
+    pub fn inferArgByLong(self: *const Command, prefix: []const u8) ArgInfer {
+        var found: ?*const Arg = null;
+        for (self.arg_list.items) |*a| {
+            if (a.anyLongStartsWith(prefix)) {
+                if (found != null) return .ambiguous;
+                found = a;
+            }
+        }
+        return if (found) |f| .{ .unique = f } else .none;
+    }
+
     pub fn findArgByShort(self: *const Command, c: u8) ?*const Arg {
         for (self.arg_list.items) |*a| {
             if (a.matchesShort(c)) return a;
@@ -478,6 +513,56 @@ pub const Command = struct {
             if (sc.matchesName(name)) return sc;
         }
         return null;
+    }
+
+    pub const SubInfer = union(enum) { none, ambiguous, unique: *const Command };
+
+    /// Ambiguity-aware prefix lookup over subcommand names + aliases
+    /// (clap's `infer_subcommands`). Prefixes of one subcommand are unique even
+    /// when several of its aliases match.
+    pub fn inferSubcommand(self: *const Command, prefix: []const u8) SubInfer {
+        var found: ?*const Command = null;
+        for (self.subcommands.items) |*sc| {
+            if (sc.anyNameStartsWith(prefix)) {
+                if (found != null) return .ambiguous;
+                found = sc;
+            }
+        }
+        return if (found) |f| .{ .unique = f } else .none;
+    }
+
+    /// `inferSubcommand` over long-flag subcommand names + long-flag aliases.
+    pub fn inferFlagSubcommandLong(self: *const Command, prefix: []const u8) SubInfer {
+        var found: ?*const Command = null;
+        for (self.subcommands.items) |*sc| {
+            if (sc.anyLongFlagStartsWith(prefix)) {
+                if (found != null) return .ambiguous;
+                found = sc;
+            }
+        }
+        return if (found) |f| .{ .unique = f } else .none;
+    }
+
+    fn anyNameStartsWith(self: *const Command, prefix: []const u8) bool {
+        if (std.mem.startsWith(u8, self.name, prefix)) return true;
+        if (self.aliases_list) |al| {
+            for (al) |x| if (std.mem.startsWith(u8, x, prefix)) return true;
+        }
+        if (self.visible_aliases_list) |al| {
+            for (al) |x| if (std.mem.startsWith(u8, x, prefix)) return true;
+        }
+        return false;
+    }
+
+    fn anyLongFlagStartsWith(self: *const Command, prefix: []const u8) bool {
+        if (self.long_flag) |l| if (std.mem.startsWith(u8, l, prefix)) return true;
+        if (self.long_flag_aliases_list) |al| {
+            for (al) |x| if (std.mem.startsWith(u8, x, prefix)) return true;
+        }
+        if (self.visible_long_flag_aliases_list) |al| {
+            for (al) |x| if (std.mem.startsWith(u8, x, prefix)) return true;
+        }
+        return false;
     }
 
     /// Whether `name` is this command's name or one of its aliases.

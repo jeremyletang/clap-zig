@@ -347,6 +347,22 @@ const Parser = struct {
             return self.helpSubcommandTarget();
         }
         if (self.cmd.findSubcommand(token)) |sc| return .{ .matched = sc.name };
+        if (self.cmd.infer_subcommands and self.cmd.hasSubcommands() and
+            !std.mem.startsWith(u8, token, "-"))
+        {
+            switch (self.cmd.inferSubcommand(token)) {
+                .unique => |sc| return .{ .matched = sc.name },
+                // an ambiguous or unknown prefix is only a subcommand error when no
+                // positional slot can absorb it as a value (clap's infer behavior)
+                .ambiguous, .none => {
+                    if (self.cmd.getPositional(self.pos_counter) == null and
+                        !self.cmd.allow_external_subcommands)
+                    {
+                        return .{ .err = self.mkErr(.invalid_subcommand, token, null) };
+                    }
+                },
+            }
+        }
         return .none;
     }
 
@@ -418,8 +434,18 @@ const Parser = struct {
         {
             return .{ .version = true };
         }
-        const a = self.cmd.findArgByLong(l.name) orelse {
+        const a = self.cmd.findArgByLong(l.name) orelse blk: {
             if (self.cmd.findFlagSubcommandLong(l.name)) |sc| return .{ .flag_sub = .{ .name = sc.name, .inject = null } };
+            if (self.cmd.infer_long_args) switch (self.cmd.inferArgByLong(l.name)) {
+                .unique => |ia| break :blk ia,
+                .ambiguous => return .{ .err = self.mkErr(.unknown_argument, self.dashed(l.name), null) },
+                .none => {},
+            };
+            if (self.cmd.infer_subcommands) switch (self.cmd.inferFlagSubcommandLong(l.name)) {
+                .unique => |sc| return .{ .flag_sub = .{ .name = sc.name, .inject = null } },
+                .ambiguous => return .{ .err = self.mkErr(.unknown_argument, self.dashed(l.name), null) },
+                .none => {},
+            };
             return .{ .err = self.mkErr(.unknown_argument, self.dashed(l.name), null) };
         };
         self.valid_arg_found = true;

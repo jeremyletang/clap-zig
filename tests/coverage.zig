@@ -44,6 +44,23 @@ pub const entries = [_]Entry{
     .{ .file = "version.rs", .name = "mut_arg_version_no_auto_version", .status = .deferred, .note = "mut_arg (mutate auto version flag)" },
     .{ .file = "version.rs", .name = "propagate_version_no_version_info", .status = .deferred, .note = "debug_assert (propagate without version)" },
 
+    // ----- infer_subcommands / infer_long_args -----
+    .{ .file = "app_settings.rs", .name = "infer_subcommands_fail_no_args", .status = .ported },
+    .{ .file = "app_settings.rs", .name = "infer_subcommands_fail_with_args", .status = .ported },
+    .{ .file = "app_settings.rs", .name = "infer_subcommands_fail_with_args2", .status = .ported },
+    .{ .file = "app_settings.rs", .name = "infer_subcommands_pass", .status = .ported },
+    .{ .file = "app_settings.rs", .name = "infer_subcommands_pass_close", .status = .ported },
+    .{ .file = "app_settings.rs", .name = "infer_subcommands_pass_exact_match", .status = .ported },
+    .{ .file = "app_settings.rs", .name = "infer_subcommands_pass_conflicting_aliases", .status = .ported },
+    .{ .file = "app_settings.rs", .name = "infer_long_flag_pass_conflicting_aliases", .status = .ported },
+    .{ .file = "app_settings.rs", .name = "infer_long_flag", .status = .ported },
+    .{ .file = "app_settings.rs", .name = "infer_subcommands_long_flag_fail_with_args2", .status = .ported },
+    .{ .file = "app_settings.rs", .name = "infer_subcommands_fail_suggestions", .status = .ported },
+    .{ .file = "opts.rs", .name = "infer_long_arg_pass", .status = .ported },
+    .{ .file = "opts.rs", .name = "infer_long_arg_pass_conflicts_exact_match", .status = .ported },
+    .{ .file = "opts.rs", .name = "infer_long_arg_pass_conflicting_aliases", .status = .ported },
+    .{ .file = "opts.rs", .name = "infer_long_arg_fail_conflicts", .status = .ported },
+
     // ----- allow_hyphen_values / allow_negative_numbers -----
     .{ .file = "app_settings.rs", .name = "leading_hyphen_short", .status = .ported },
     .{ .file = "app_settings.rs", .name = "leading_hyphen_long", .status = .ported },
@@ -103,9 +120,10 @@ pub const entries = [_]Entry{
     .{ .file = "flag_subcommands.rs", .name = "flag_subcommand_long_conflict_with_arg", .status = .deferred, .note = "debug_assert" },
     .{ .file = "flag_subcommands.rs", .name = "flag_subcommand_conflict_with_help", .status = .deferred, .note = "debug_assert" },
     .{ .file = "flag_subcommands.rs", .name = "flag_subcommand_conflict_with_version", .status = .deferred, .note = "debug_assert" },
-    .{ .file = "flag_subcommands.rs", .name = "flag_subcommand_long_infer_pass", .status = .deferred, .note = "infer_subcommands" },
-    .{ .file = "flag_subcommands.rs", .name = "flag_subcommand_long_infer_pass_close", .status = .deferred, .note = "infer_subcommands" },
-    .{ .file = "flag_subcommands.rs", .name = "flag_subcommand_long_infer_exact_match", .status = .deferred, .note = "infer_subcommands" },
+    .{ .file = "flag_subcommands.rs", .name = "flag_subcommand_long_infer_pass", .status = .ported },
+    .{ .file = "flag_subcommands.rs", .name = "flag_subcommand_long_infer_fail", .status = .ported },
+    .{ .file = "flag_subcommands.rs", .name = "flag_subcommand_long_infer_pass_close", .status = .ported },
+    .{ .file = "flag_subcommands.rs", .name = "flag_subcommand_long_infer_exact_match", .status = .ported },
 
     // ----- app_settings.rs (colour) -----
     .{ .file = "app_settings.rs", .name = "color_is_global", .status = .ported },

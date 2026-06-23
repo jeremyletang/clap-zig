@@ -17,6 +17,33 @@ pub const Entry = struct {
 };
 
 pub const entries = [_]Entry{
+    // ----- version (long_version / propagate_version / -V vs --version) -----
+    .{ .file = "version.rs", .name = "version_short_flag_no_version", .status = .ported },
+    .{ .file = "version.rs", .name = "version_long_flag_no_version", .status = .ported },
+    .{ .file = "version.rs", .name = "version_short_flag_with_version", .status = .ported },
+    .{ .file = "version.rs", .name = "version_long_flag_with_version", .status = .ported },
+    .{ .file = "version.rs", .name = "version_short_flag_with_long_version", .status = .ported },
+    .{ .file = "version.rs", .name = "version_long_flag_with_long_version", .status = .ported },
+    .{ .file = "version.rs", .name = "version_short_flag_with_both", .status = .ported },
+    .{ .file = "version.rs", .name = "version_long_flag_with_both", .status = .ported },
+    .{ .file = "version.rs", .name = "help_short_flag_no_version", .status = .ported },
+    .{ .file = "version.rs", .name = "help_long_flag_no_version", .status = .ported },
+    .{ .file = "version.rs", .name = "help_short_flag_with_version", .status = .ported },
+    .{ .file = "version.rs", .name = "help_long_flag_with_version", .status = .ported },
+    .{ .file = "version.rs", .name = "help_short_flag_with_long_version", .status = .ported },
+    .{ .file = "version.rs", .name = "help_long_flag_with_long_version", .status = .ported },
+    .{ .file = "version.rs", .name = "help_short_flag_with_both", .status = .ported },
+    .{ .file = "version.rs", .name = "help_long_flag_with_both", .status = .ported },
+    .{ .file = "version.rs", .name = "no_propagation_by_default_long", .status = .ported },
+    .{ .file = "version.rs", .name = "no_propagation_by_default_short", .status = .ported },
+    .{ .file = "version.rs", .name = "propagate_version_long", .status = .ported },
+    .{ .file = "version.rs", .name = "propagate_version_short", .status = .ported },
+    .{ .file = "version.rs", .name = "override_version_long_with_user_flag", .status = .deferred, .note = "debug_assert (builder validation panic)" },
+    .{ .file = "version.rs", .name = "override_version_short_with_user_flag", .status = .deferred, .note = "debug_assert (builder validation panic)" },
+    .{ .file = "version.rs", .name = "version_required", .status = .deferred, .note = "debug_assert (ArgAction::Version without version)" },
+    .{ .file = "version.rs", .name = "mut_arg_version_no_auto_version", .status = .deferred, .note = "mut_arg (mutate auto version flag)" },
+    .{ .file = "version.rs", .name = "propagate_version_no_version_info", .status = .deferred, .note = "debug_assert (propagate without version)" },
+
     // ----- allow_hyphen_values / allow_negative_numbers -----
     .{ .file = "app_settings.rs", .name = "leading_hyphen_short", .status = .ported },
     .{ .file = "app_settings.rs", .name = "leading_hyphen_long", .status = .ported },

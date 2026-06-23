@@ -51,7 +51,7 @@ fn emitTag(b: *Buf, cmd: *const Command, tag: []const u8, long: bool) void {
     if (eq(u8, tag, "name") or eq(u8, tag, "bin")) {
         b.add(cmd.displayName());
     } else if (eq(u8, tag, "version")) {
-        if (cmd.version_str) |v| b.add(v);
+        if (cmd.version_str orelse cmd.long_version_str) |v| b.add(v);
     } else if (eq(u8, tag, "author")) {
         if (cmd.author_text) |a| b.add(a);
     } else if (eq(u8, tag, "author-with-newline")) {

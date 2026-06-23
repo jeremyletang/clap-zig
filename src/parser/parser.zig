@@ -40,7 +40,8 @@ const FlagResult = union(enum) {
     opt: []const u8,
     /// help requested; payload is whether long (`--help`) vs short (`-h`)
     help: bool,
-    version,
+    /// version requested; payload is whether long (`--version`) vs short (`-V`)
+    version: bool,
     flag_sub: FlagSub,
     err: Error,
 };
@@ -323,7 +324,7 @@ const Parser = struct {
                 return .consumed;
             },
             .help => |long| return .{ .ret = helpOutcome(self.cmd, long) },
-            .version => return .{ .ret = versionOutcome(self.cmd) },
+            .version => |long| return .{ .ret = versionOutcome(self.cmd, long) },
             .flag_sub => |fs| return .{ .flag_sub = fs },
             .err => |e| return .{ .ret = .{ .err = e } },
         }
@@ -397,11 +398,11 @@ const Parser = struct {
 
     /// A help/version action on a matched arg yields the corresponding outcome
     /// (clap's `ArgAction::Help`/`HelpShort`/`HelpLong`/`Version`).
-    fn actionResult(action_val: @import("../builder/action.zig").ArgAction) ?FlagResult {
+    fn actionResult(action_val: @import("../builder/action.zig").ArgAction, long: bool) ?FlagResult {
         return switch (action_val) {
             .help, .help_long => .{ .help = true },
             .help_short => .{ .help = false },
-            .version => .version,
+            .version => .{ .version = long },
             else => null,
         };
     }
@@ -415,14 +416,14 @@ const Parser = struct {
         if (self.cmd.hasVersionFlag() and std.mem.eql(u8, l.name, "version") and
             self.cmd.findArgByLong("version") == null)
         {
-            return .version;
+            return .{ .version = true };
         }
         const a = self.cmd.findArgByLong(l.name) orelse {
             if (self.cmd.findFlagSubcommandLong(l.name)) |sc| return .{ .flag_sub = .{ .name = sc.name, .inject = null } };
             return .{ .err = self.mkErr(.unknown_argument, self.dashed(l.name), null) };
         };
         self.valid_arg_found = true;
-        if (actionResult(a.action_val)) |r| return r;
+        if (actionResult(a.action_val, true)) |r| return r;
         if (self.reuseError(a)) |e| return .{ .err = e };
         if (!a.takesValue()) {
             if (l.value != null) {
@@ -444,14 +445,14 @@ const Parser = struct {
                 return .{ .help = false };
             }
             if (self.cmd.hasVersionFlag() and c == 'V' and self.cmd.findArgByShort('V') == null) {
-                return .version;
+                return .{ .version = false };
             }
             const a = self.cmd.findArgByShort(c) orelse {
                 if (self.cmd.findFlagSubcommandShort(c)) |sc| return .{ .flag_sub = .{ .name = sc.name, .inject = rest } };
                 return .{ .err = self.mkErr(.unknown_argument, self.shortDisplay(c), null) };
             };
             self.valid_arg_found = true;
-            if (actionResult(a.action_val)) |r| return r;
+            if (actionResult(a.action_val, false)) |r| return r;
             if (self.reuseError(a)) |e| return .{ .err = e };
             if (!a.takesValue()) {
                 self.recordArg(a, &.{}, .command_line);
@@ -726,6 +727,6 @@ fn helpOutcome(cmd: *const Command, long: bool) Outcome {
     return .{ .err = .{ .kind = .display_help, .cmd = cmd, .help_long = long } };
 }
 
-fn versionOutcome(cmd: *const Command) Outcome {
-    return .{ .err = .{ .kind = .display_version, .cmd = cmd } };
+fn versionOutcome(cmd: *const Command, long: bool) Outcome {
+    return .{ .err = .{ .kind = .display_version, .cmd = cmd, .version_long = long } };
 }

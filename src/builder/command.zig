@@ -35,6 +35,9 @@ pub const Command = struct {
     current_disp_ord: ?usize = 0,
     about_text: ?[]const u8 = null,
     version_str: ?[]const u8 = null,
+    long_version_str: ?[]const u8 = null,
+    /// propagate `version`/`long_version` to subcommands (clap's `propagate_version`)
+    propagate_version: bool = false,
     author_text: ?[]const u8 = null,
     help_template_text: ?[]const u8 = null,
     usage_override: ?[]const u8 = null,
@@ -179,6 +182,21 @@ pub const Command = struct {
         return c;
     }
 
+    /// A longer version string, shown for `--version` (clap's `long_version`).
+    /// `-V` keeps using `version`; if only one is set, both flags use it.
+    pub fn longVersion(self: Command, v: []const u8) Command {
+        var c = self;
+        c.long_version_str = v;
+        return c;
+    }
+
+    /// Propagate `version`/`long_version` to subcommands (clap's `propagate_version`).
+    pub fn propagateVersion(self: Command, yes: bool) Command {
+        var c = self;
+        c.propagate_version = yes;
+        return c;
+    }
+
     /// Stored for parity; not yet shown in help output.
     pub fn author(self: Command, a: []const u8) Command {
         var c = self;
@@ -228,7 +246,7 @@ pub const Command = struct {
 
     /// Whether the auto `-V/--version` flag applies (version set and not disabled).
     pub fn hasVersionFlag(self: *const Command) bool {
-        return self.version_str != null and !self.disable_version_flag;
+        return (self.version_str != null or self.long_version_str != null) and !self.disable_version_flag;
     }
 
     pub fn binName(self: Command, name: []const u8) Command {
@@ -382,6 +400,11 @@ pub const Command = struct {
         }
         for (self.subcommands.items) |*sc| {
             sc.color_choice = self.color_choice; // color is global (clap)
+            if (self.propagate_version) {
+                sc.propagate_version = true;
+                if (sc.version_str == null) sc.version_str = self.version_str;
+                if (sc.long_version_str == null) sc.long_version_str = self.long_version_str;
+            }
             const child = std.fmt.allocPrint(self.allocator, "{s} {s}", .{ path, sc.name }) catch
                 @panic("clap: OOM building command");
             sc.propagate(child, globals.items);

@@ -24,9 +24,13 @@ pub fn render(allocator: std.mem.Allocator, e: errors.Error) []const u8 {
             return help.render(allocator, e.cmd, e.help_long);
         },
         .display_version => {
+            const ver = if (e.version_long)
+                e.cmd.long_version_str orelse e.cmd.version_str
+            else
+                e.cmd.version_str orelse e.cmd.long_version_str;
             return std.fmt.allocPrint(allocator, "{s} {s}\n", .{
                 e.cmd.name,
-                e.cmd.version_str orelse "",
+                ver orelse "",
             }) catch @panic("clap: OOM rendering output");
         },
         else => {},

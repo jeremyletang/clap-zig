@@ -4,6 +4,7 @@ const matcher = @import("matcher.zig");
 const errors = @import("../error.zig");
 const layout = @import("../output/layout.zig");
 const arg = @import("../builder/arg.zig");
+const suggest = @import("../suggest.zig");
 
 const Command = command.Command;
 const ArgMatches = matcher.ArgMatches;
@@ -429,6 +430,11 @@ const InvalidExtra = struct {
 };
 
 fn invalidValue(allocator: std.mem.Allocator, cmd: *const Command, a: *const Arg, value: []const u8, extra: InvalidExtra) Error {
+    var suggestions: ?[]const []const u8 = null;
+    if (extra.possible_values) |pv| {
+        const cands = suggest.didYouMean(allocator, value, pv);
+        if (cands.len != 0) suggestions = cands;
+    }
     return .{
         .kind = .invalid_value,
         .cmd = cmd,
@@ -436,5 +442,6 @@ fn invalidValue(allocator: std.mem.Allocator, cmd: *const Command, a: *const Arg
         .value = value,
         .possible_values = extra.possible_values,
         .reason = extra.reason,
+        .suggestions = suggestions,
     };
 }

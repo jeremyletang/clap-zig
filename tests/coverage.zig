@@ -44,6 +44,14 @@ pub const entries = [_]Entry{
     .{ .file = "version.rs", .name = "mut_arg_version_no_auto_version", .status = .deferred, .note = "mut_arg (mutate auto version flag)" },
     .{ .file = "version.rs", .name = "propagate_version_no_version_info", .status = .deferred, .note = "debug_assert (propagate without version)" },
 
+    // ----- did-you-mean suggestions -----
+    .{ .file = "opts.rs", .name = "did_you_mean", .status = .ported },
+    .{ .file = "opts.rs", .name = "issue_1073_suboptimal_flag_suggestion", .status = .ported },
+    .{ .file = "subcommands.rs", .name = "subcmd_did_you_mean_output", .status = .ported },
+    .{ .file = "subcommands.rs", .name = "subcmd_did_you_mean_output_ambiguous", .status = .ported },
+    .{ .file = "subcommands.rs", .name = "subcmd_did_you_mean_output_arg", .status = .deferred, .note = "flag→subcommand-arg cross suggestion" },
+    .{ .file = "subcommands.rs", .name = "subcmd_did_you_mean_output_arg_false_positives", .status = .deferred, .note = "flag→subcommand-arg cross suggestion" },
+
     // ----- infer_subcommands / infer_long_args -----
     .{ .file = "app_settings.rs", .name = "infer_subcommands_fail_no_args", .status = .ported },
     .{ .file = "app_settings.rs", .name = "infer_subcommands_fail_with_args", .status = .ported },
@@ -296,10 +304,10 @@ pub const entries = [_]Entry{
     .{ .file = "possible_values.rs", .name = "possible_values_of_option_multiple", .status = .ported },
     .{ .file = "possible_values.rs", .name = "possible_values_of_option_multiple_fail", .status = .ported },
     .{ .file = "possible_values.rs", .name = "ignore_case_fail", .status = .ported },
-    .{ .file = "possible_values.rs", .name = "possible_values_output", .status = .deferred, .note = "did-you-mean suggestions + value quoting" },
-    .{ .file = "possible_values.rs", .name = "possible_values_alias_output", .status = .deferred, .note = "value aliases + suggestions" },
-    .{ .file = "possible_values.rs", .name = "possible_values_hidden_output", .status = .deferred, .note = "hidden possible values + suggestions" },
-    .{ .file = "possible_values.rs", .name = "escaped_possible_values_output", .status = .deferred, .note = "did-you-mean suggestions" },
+    .{ .file = "possible_values.rs", .name = "possible_values_output", .status = .ported },
+    .{ .file = "possible_values.rs", .name = "possible_values_alias_output", .status = .deferred, .note = "PossibleValue aliases" },
+    .{ .file = "possible_values.rs", .name = "possible_values_hidden_output", .status = .deferred, .note = "PossibleValue.hide" },
+    .{ .file = "possible_values.rs", .name = "escaped_possible_values_output", .status = .ported },
     .{ .file = "possible_values.rs", .name = "missing_possible_value_error", .status = .deferred, .note = "value-required error" },
     .{ .file = "possible_values.rs", .name = "alias", .status = .deferred, .note = "value aliases" },
     .{ .file = "possible_values.rs", .name = "aliases", .status = .deferred, .note = "value aliases" },

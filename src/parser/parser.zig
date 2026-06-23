@@ -6,6 +6,7 @@ const matcher = @import("matcher.zig");
 const validator = @import("validator.zig");
 const errors = @import("../error.zig");
 const env = @import("../env.zig");
+const suggest = @import("../suggest.zig");
 
 const Command = command.Command;
 const Arg = arg.Arg;
@@ -347,23 +348,37 @@ const Parser = struct {
             return self.helpSubcommandTarget();
         }
         if (self.cmd.findSubcommand(token)) |sc| return .{ .matched = sc.name };
-        if (self.cmd.infer_subcommands and self.cmd.hasSubcommands() and
-            !std.mem.startsWith(u8, token, "-"))
-        {
-            switch (self.cmd.inferSubcommand(token)) {
-                .unique => |sc| return .{ .matched = sc.name },
-                // an ambiguous or unknown prefix is only a subcommand error when no
-                // positional slot can absorb it as a value (clap's infer behavior)
-                .ambiguous, .none => {
-                    if (self.cmd.getPositional(self.pos_counter) == null and
-                        !self.cmd.allow_external_subcommands)
-                    {
-                        return .{ .err = self.mkErr(.invalid_subcommand, token, null) };
-                    }
-                },
-            }
+        if (!self.cmd.hasSubcommands() or std.mem.startsWith(u8, token, "-")) return .none;
+        if (self.cmd.infer_subcommands) switch (self.cmd.inferSubcommand(token)) {
+            .unique => |sc| return .{ .matched = sc.name },
+            .ambiguous, .none => {},
+        };
+        // not a subcommand: a free positional slot (or an external-subcommand
+        // catch-all) still consumes the token as a value
+        if (self.cmd.getPositional(self.pos_counter) != null) return .none;
+        if (self.cmd.allow_external_subcommands) return .none;
+        // a bare token that can't be placed is a failed subcommand (clap's
+        // match_arg_error): suggest similar names, else error only when the
+        // command takes no positionals at all (or infers subcommands)
+        var e = self.mkErr(.invalid_subcommand, token, null);
+        if (self.subcommandSuggestions(token)) |s| {
+            e.suggestions = s;
+            return .{ .err = e };
+        }
+        if (self.cmd.countPositionals() == 0 or self.cmd.infer_subcommands) {
+            return .{ .err = e };
         }
         return .none;
+    }
+
+    fn subcommandSuggestions(self: *Parser, token: []const u8) ?[]const []const u8 {
+        var names: std.ArrayListUnmanaged([]const u8) = .empty;
+        for (self.cmd.subcommands.items) |*sc| {
+            names.append(self.allocator, sc.name) catch @panic("clap: OOM");
+            if (sc.aliases_list) |al| for (al) |x| names.append(self.allocator, x) catch @panic("clap: OOM");
+        }
+        const cands = suggest.didYouMean(self.allocator, token, names.items);
+        return if (cands.len == 0) null else cands;
     }
 
     fn helpSubcommandTarget(self: *Parser) SubCheck {
@@ -446,7 +461,7 @@ const Parser = struct {
                 .ambiguous => return .{ .err = self.mkErr(.unknown_argument, self.dashed(l.name), null) },
                 .none => {},
             };
-            return .{ .err = self.mkErr(.unknown_argument, self.dashed(l.name), null) };
+            return .{ .err = self.unknownLongError(l.name) };
         };
         self.valid_arg_found = true;
         if (actionResult(a.action_val, true)) |r| return r;
@@ -669,6 +684,34 @@ const Parser = struct {
 
     fn mkErr(self: *Parser, kind: errors.ErrorKind, name: ?[]const u8, value: ?[]const u8) Error {
         return .{ .kind = kind, .cmd = self.cmd, .arg = name, .value = value };
+    }
+
+    /// `unknown_argument` for an unmatched `--long`, carrying a "did you mean"
+    /// suggestion of the most similar defined long flag (clap's did_you_mean_flag).
+    /// The suggested arg is recorded as present so the usage line names it
+    /// instead of `[OPTIONS]` (clap's `start_custom_arg`).
+    fn unknownLongError(self: *Parser, name: []const u8) Error {
+        var e = self.mkErr(.unknown_argument, self.dashed(name), null);
+        const cand = self.bestLong(name) orelse return e;
+        e.suggestions = self.allocator.dupe([]const u8, &.{self.dashed(cand)}) catch @panic("clap: OOM");
+        if (self.cmd.findArgByLong(cand)) |a| {
+            self.matches.startOccurrence(a.id, .command_line);
+            e.used_ids = self.matches.presentIds(self.allocator);
+        }
+        return e;
+    }
+
+    fn bestLong(self: *Parser, name: []const u8) ?[]const u8 {
+        var longs: std.ArrayListUnmanaged([]const u8) = .empty;
+        for (self.cmd.arg_list.items) |*a| {
+            if (a.long_name) |l| longs.append(self.allocator, l) catch @panic("clap: OOM");
+            if (a.aliases_list) |al| for (al) |x| longs.append(self.allocator, x) catch @panic("clap: OOM");
+        }
+        if (!self.cmd.disable_help_flag) longs.append(self.allocator, "help") catch @panic("clap: OOM");
+        if (self.cmd.hasVersionFlag()) longs.append(self.allocator, "version") catch @panic("clap: OOM");
+        const cands = suggest.didYouMean(self.allocator, name, longs.items);
+        if (cands.len == 0) return null;
+        return cands[cands.len - 1];
     }
 
     /// A non-multiple flag/option used a second time: error, unless

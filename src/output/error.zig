@@ -40,6 +40,7 @@ pub fn render(allocator: std.mem.Allocator, e: errors.Error) []const u8 {
     b.addByte(' ');
     appendMessage(&b, e);
     b.addByte('\n');
+    appendSuggestions(&b, e);
     if (usesUsage(e.kind)) {
         b.addByte('\n');
         b.add(usage.errorUsage(allocator, e.cmd, e.used_ids orelse &.{}));
@@ -52,6 +53,49 @@ pub fn render(allocator: std.mem.Allocator, e: errors.Error) []const u8 {
 /// Whether this error kind prints a `Usage:` block (clap omits it for invalid_value).
 fn usesUsage(kind: errors.ErrorKind) bool {
     return kind != .invalid_value;
+}
+
+/// Rust-`{:?}`-style quoting for a possible value (clap's `Escape`): wrap in
+/// double quotes (escaping `"`/`\`) when empty or containing whitespace.
+fn escapeValue(allocator: std.mem.Allocator, v: []const u8) []const u8 {
+    var needs = v.len == 0;
+    for (v) |c| {
+        if (std.ascii.isWhitespace(c)) needs = true;
+    }
+    if (!needs) return v;
+    var b = Buf{ .allocator = allocator };
+    b.addByte('"');
+    for (v) |c| {
+        if (c == '"' or c == '\\') b.addByte('\\');
+        b.addByte(c);
+    }
+    b.addByte('"');
+    return b.items();
+}
+
+/// The "tip:" line for a "did you mean" suggestion (clap's `did_you_mean`).
+fn appendSuggestions(b: *Buf, e: errors.Error) void {
+    const sugg = e.suggestions orelse return;
+    if (sugg.len == 0) return;
+    const ctx = switch (e.kind) {
+        .invalid_subcommand => "subcommand",
+        .invalid_value => "value",
+        else => "argument",
+    };
+    b.add("\n  ");
+    b.role(.valid, "tip:");
+    if (sugg.len == 1) {
+        b.print(" a similar {s} exists: ", .{ctx});
+    } else {
+        b.print(" some similar {s}s exist: ", .{ctx});
+    }
+    for (sugg, 0..) |s, i| {
+        if (i != 0) b.add(", ");
+        b.addByte('\'');
+        b.role(.valid, s);
+        b.addByte('\'');
+    }
+    b.addByte('\n');
 }
 
 fn appendMessage(b: *Buf, e: errors.Error) void {
@@ -74,7 +118,7 @@ fn appendMessage(b: *Buf, e: errors.Error) void {
                 b.add("\n  [possible values: ");
                 for (pv, 0..) |v, i| {
                     if (i != 0) b.add(", ");
-                    b.add(v);
+                    b.role(.valid, escapeValue(b.allocator, v));
                 }
                 b.add("]");
             }

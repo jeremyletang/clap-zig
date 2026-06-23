@@ -62,4 +62,7 @@ pub const Error = struct {
     /// for `wrong_number_of_values` / `too_few_values`: expected vs provided counts
     n_expected: usize = 0,
     n_provided: usize = 0,
+    /// "did you mean" candidates (clap's suggestions); the context word is taken
+    /// from `kind`: argument / subcommand / value
+    suggestions: ?[]const []const u8 = null,
 };

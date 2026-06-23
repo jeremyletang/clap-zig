@@ -43,6 +43,10 @@ pub fn renderHelp(allocator: std.mem.Allocator, cmd: *const Command) []const u8 
 pub const renderUsage = usage.render;
 pub const renderError = @import("output/error.zig").render;
 
+/// "Did you mean" candidates from `possible` similar to `v` (clap's Jaro-based
+/// `did_you_mean`); ascending by similarity, most similar last.
+pub const didYouMean = @import("suggest.zig").didYouMean;
+
 // ----- colour / styling -----
 pub const ColorChoice = style.ColorChoice;
 pub const Styles = style.Styles;

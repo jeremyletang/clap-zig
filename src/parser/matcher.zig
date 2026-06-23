@@ -1,9 +1,10 @@
 const std = @import("std");
 const value_parser = @import("../builder/value_parser.zig");
 
-/// Where a stored value came from (precedence: command_line > default_value).
+/// Where a stored value came from (precedence: command_line > env > default_value).
+/// `env`/`command_line` are "explicit" (clap's `is_explicit`); only a default is not.
 /// Port of https://github.com/clap-rs/clap/blob/master/clap_builder/src/parser/matches/value_source.rs
-pub const ValueSource = enum { default_value, command_line };
+pub const ValueSource = enum { default_value, env, command_line };
 
 /// Accumulated values for a single argument id, plus the parse-index of each
 /// (clap's `cur_idx`: flag-char and value slots counted 1-based, binary = 0).
@@ -86,6 +87,18 @@ pub const ArgMatches = struct {
         }
     }
 
+    /// Seed value(s) from an environment variable (only if otherwise absent).
+    /// Higher precedence than a default, lower than the command line.
+    pub fn setEnv(self: *ArgMatches, id: []const u8, vals: []const []const u8, first_index: usize) void {
+        if (self.map.contains(id)) return;
+        const m = self.getOrPut(id);
+        m.source = .env;
+        for (vals, 0..) |v, i| {
+            m.values.append(self.allocator, v) catch @panic("clap: OOM matching");
+            m.indices.append(self.allocator, first_index + i) catch @panic("clap: OOM matching");
+        }
+    }
+
     /// Clear a prior occurrence so it can be re-recorded (clap's `args_override_self`).
     pub fn reset(self: *ArgMatches, id: []const u8) void {
         if (self.map.getPtr(id)) |m| {
@@ -133,14 +146,21 @@ pub const ArgMatches = struct {
 
     // ----- retrieval -----
 
-    /// Whether the argument was supplied on the command line (defaults don't count).
+    /// Whether the argument was supplied explicitly — command line or env, but
+    /// not a default (clap's `is_explicit`).
     pub fn isPresent(self: *const ArgMatches, id: []const u8) bool {
         const m = self.map.getPtr(id) orelse return false;
-        return m.source == .command_line;
+        return m.source != .default_value;
     }
 
     pub fn contains(self: *const ArgMatches, id: []const u8) bool {
         return self.map.contains(id);
+    }
+
+    /// Where the value for `id` came from, or null if absent.
+    pub fn valueSource(self: *const ArgMatches, id: []const u8) ?ValueSource {
+        const m = self.map.getPtr(id) orelse return null;
+        return m.source;
     }
 
     pub fn getRaw(self: *const ArgMatches, id: []const u8) ?[]const []const u8 {
@@ -194,7 +214,7 @@ pub const ArgMatches = struct {
         var ids: std.ArrayListUnmanaged([]const u8) = .empty;
         var it = self.map.iterator();
         while (it.next()) |entry| {
-            if (entry.value_ptr.source == .command_line) {
+            if (entry.value_ptr.source != .default_value) {
                 ids.append(allocator, entry.key_ptr.*) catch @panic("clap: OOM");
             }
         }
@@ -207,7 +227,7 @@ pub const ArgMatches = struct {
         if (self.sub != null) return true;
         var it = self.map.valueIterator();
         while (it.next()) |m| {
-            if (m.source == .command_line) return true;
+            if (m.source != .default_value) return true;
         }
         return false;
     }

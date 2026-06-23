@@ -32,5 +32,6 @@ test {
     _ = @import("clap_explicit_help_test.zig");
     _ = @import("clap_color_test.zig");
     _ = @import("clap_flag_subcommands_test.zig");
+    _ = @import("clap_env_test.zig");
     _ = @import("coverage_test.zig");
 }

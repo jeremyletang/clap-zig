@@ -60,6 +60,7 @@ pub const Arg = struct {
     require_equals: bool = false,
     default_value: ?[]const u8 = null,
     default_missing_value: ?[]const u8 = null,
+    env_var: ?[]const u8 = null,
     possible_values: ?[]const []const u8 = null,
     value_parser_fn: ?value_parser.ParserFn = null,
     value_help: ?[]const PossibleValue = null,
@@ -215,6 +216,15 @@ pub const Arg = struct {
     pub fn defaultValue(self: Arg, v: []const u8) Arg {
         var a = self;
         a.default_value = v;
+        return a;
+    }
+
+    /// Fall back to the named environment variable when the arg is absent from
+    /// the command line (clap's `env`). The value is supplied by an `EnvSource`
+    /// passed to `getMatchesEnv`; precedence is CLI > env > default.
+    pub fn env(self: Arg, name: []const u8) Arg {
+        var a = self;
+        a.env_var = name;
         return a;
     }
 

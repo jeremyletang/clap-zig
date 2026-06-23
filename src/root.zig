@@ -30,7 +30,11 @@ pub const ErrorKind = err.ErrorKind;
 pub const Error = err.Error;
 pub const Outcome = parser.Outcome;
 pub const parse = parser.parse;
+pub const parseEnv = parser.parseEnv;
 pub const getMatches = parser.getMatches;
+pub const getMatchesEnv = parser.getMatchesEnv;
+pub const EnvSource = @import("env.zig").EnvSource;
+pub const mapEnvSource = @import("env.zig").mapSource;
 pub const external_id = parser.external_id;
 /// Render a command's compact (`-h`) help text (plain, no colour).
 pub fn renderHelp(allocator: std.mem.Allocator, cmd: *const Command) []const u8 {

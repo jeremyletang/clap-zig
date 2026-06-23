@@ -17,6 +17,25 @@ pub const Entry = struct {
 };
 
 pub const entries = [_]Entry{
+    // ----- env.rs (Arg.env fallback via injected EnvSource) -----
+    .{ .file = "env.rs", .name = "env", .status = .ported },
+    .{ .file = "env.rs", .name = "no_env", .status = .ported },
+    .{ .file = "env.rs", .name = "no_env_no_takes_value", .status = .deferred, .note = "env flag (no takes_value)" },
+    .{ .file = "env.rs", .name = "with_default", .status = .ported },
+    .{ .file = "env.rs", .name = "opt_user_override", .status = .ported },
+    .{ .file = "env.rs", .name = "multiple_one", .status = .ported },
+    .{ .file = "env.rs", .name = "multiple_three", .status = .ported },
+    .{ .file = "env.rs", .name = "multiple_no_delimiter", .status = .ported },
+    .{ .file = "env.rs", .name = "possible_value", .status = .ported },
+    .{ .file = "env.rs", .name = "not_possible_value", .status = .ported },
+    .{ .file = "env.rs", .name = "env_bool_literal", .status = .deferred, .note = "FalseyValueParser" },
+    .{ .file = "env.rs", .name = "env_os", .status = .deferred, .note = "OsStr env" },
+    .{ .file = "env.rs", .name = "positionals", .status = .deferred, .note = "env positional (untested here)" },
+    .{ .file = "env.rs", .name = "positionals_user_override", .status = .deferred, .note = "env positional (untested here)" },
+    .{ .file = "env.rs", .name = "value_parser", .status = .deferred, .note = "closure value_parser" },
+    .{ .file = "env.rs", .name = "value_parser_output", .status = .deferred, .note = "value_parser!(i32) on env" },
+    .{ .file = "env.rs", .name = "value_parser_invalid", .status = .deferred, .note = "closure value_parser" },
+
     // ----- flag_subcommands.rs (short_flag / long_flag subcommands) -----
     .{ .file = "flag_subcommands.rs", .name = "flag_subcommand_normal", .status = .ported },
     .{ .file = "flag_subcommands.rs", .name = "flag_subcommand_short", .status = .ported },

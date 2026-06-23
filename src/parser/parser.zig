@@ -5,6 +5,7 @@ const lex = @import("../lex.zig");
 const matcher = @import("matcher.zig");
 const validator = @import("validator.zig");
 const errors = @import("../error.zig");
+const env = @import("../env.zig");
 
 const Command = command.Command;
 const Arg = arg.Arg;
@@ -53,6 +54,11 @@ const PosResult = union(enum) {
 /// Parse `argv` (without the binary name) against `cmd`. Allocations come from
 /// `allocator` (an arena in the blessed path) and panic on failure.
 pub fn parse(allocator: std.mem.Allocator, cmd: *const Command, argv: []const []const u8) Outcome {
+    return parseEnv(allocator, cmd, argv, null);
+}
+
+/// Like `parse`, but `env_source` supplies values for `Arg.env` fallbacks.
+pub fn parseEnv(allocator: std.mem.Allocator, cmd: *const Command, argv: []const []const u8, env_source: ?env.EnvSource) Outcome {
     const m = ArgMatches.create(allocator) catch @panic("clap: OOM matching");
     var p = Parser{
         .allocator = allocator,
@@ -61,6 +67,7 @@ pub fn parse(allocator: std.mem.Allocator, cmd: *const Command, argv: []const []
         .cursor = lex.Cursor.init(argv),
         .positional_count = cmd.countPositionals(),
         .contains_last = hasLast(cmd),
+        .env_source = env_source,
     };
     const outcome = p.loop();
     if (outcome == .matches) propagateGlobals(allocator, cmd, outcome.matches);
@@ -96,7 +103,12 @@ fn propagateGlobals(allocator: std.mem.Allocator, cmd: *const Command, root: *Ar
 /// Parse and then validate (clap's `try_get_matches_from`). Returns matches,
 /// an error, or a help/version display request.
 pub fn getMatches(allocator: std.mem.Allocator, cmd: *const Command, argv: []const []const u8) Outcome {
-    switch (parse(allocator, cmd, argv)) {
+    return getMatchesEnv(allocator, cmd, argv, null);
+}
+
+/// Like `getMatches`, but `env_source` supplies values for `Arg.env` fallbacks.
+pub fn getMatchesEnv(allocator: std.mem.Allocator, cmd: *const Command, argv: []const []const u8, env_source: ?env.EnvSource) Outcome {
+    switch (parseEnv(allocator, cmd, argv, env_source)) {
         .err => |e| return .{ .err = e },
         .matches => |m| {
             if (validator.validate(allocator, cmd, m)) |e| return .{ .err = e };
@@ -130,6 +142,8 @@ const Parser = struct {
     pending_count: usize = 0,
     /// leftover short cluster to re-inject when dispatching a flag subcommand.
     flag_sub_inject: ?[]const u8 = null,
+    /// caller-supplied env lookup for `Arg.env` fallbacks (null = no env).
+    env_source: ?env.EnvSource = null,
 
     fn loop(self: *Parser) Outcome {
         var subcmd_name: ?[]const u8 = null;
@@ -181,8 +195,31 @@ const Parser = struct {
         if (subcmd_name) |name| {
             if (self.parseSubcommand(name)) |e| return .{ .err = e };
         }
+        self.applyEnv();
         self.applyDefaults();
         return .{ .matches = self.matches };
+    }
+
+    /// Env fallback (clap's `Arg.env`): for each absent env-bound arg, take the
+    /// value from the env source, splitting on the delimiter like a CLI value.
+    /// Runs before defaults, so precedence is CLI > env > default.
+    fn applyEnv(self: *Parser) void {
+        const src = self.env_source orelse return;
+        for (self.cmd.arg_list.items) |*a| {
+            const name = a.env_var orelse continue;
+            if (self.matches.contains(a.id)) continue;
+            const raw = src.get(name) orelse continue;
+            var vals: std.ArrayListUnmanaged([]const u8) = .empty;
+            if (a.value_delimiter) |d| {
+                var it = std.mem.splitScalar(u8, raw, d);
+                while (it.next()) |piece| vals.append(self.allocator, piece) catch @panic("clap: OOM");
+            } else {
+                vals.append(self.allocator, raw) catch @panic("clap: OOM");
+            }
+            const first = self.cur_idx + 1;
+            self.cur_idx += vals.items.len;
+            self.matches.setEnv(a.id, vals.items, first);
+        }
     }
 
     /// Append a value to the pending option, ending collection once `max` is reached.
@@ -300,6 +337,7 @@ const Parser = struct {
             .cursor = child_cursor,
             .positional_count = sc.countPositionals(),
             .contains_last = hasLast(sc),
+            .env_source = self.env_source,
         };
         switch (child_parser.loop()) {
             .matches => |cm| self.matches.setSubcommand(sc.name, cm),

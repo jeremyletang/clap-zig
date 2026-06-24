@@ -64,6 +64,7 @@ pub const Arg = struct {
     last_flag: bool = false,
     require_equals: bool = false,
     default_value: ?[]const u8 = null,
+    default_values: ?[]const []const u8 = null,
     default_missing_value: ?[]const u8 = null,
     env_var: ?[]const u8 = null,
     possible_values: ?[]const []const u8 = null,
@@ -238,6 +239,13 @@ pub const Arg = struct {
     pub fn defaultValue(self: Arg, v: []const u8) Arg {
         var a = self;
         a.default_value = v;
+        return a;
+    }
+
+    /// Multiple default values used when the arg is absent (clap's `default_values`).
+    pub fn defaultValues(self: Arg, vals: []const []const u8) Arg {
+        var a = self;
+        a.default_values = vals;
         return a;
     }
 

@@ -725,6 +725,12 @@ const Parser = struct {
                 }
             }
         }
+        if (a.default_values) |dvs| {
+            const first = self.cur_idx + 1;
+            self.cur_idx += dvs.len;
+            self.matches.setDefaults(a.id, dvs, first);
+            return;
+        }
         if (a.default_value) |dv| {
             if (a.value_delimiter) |d| {
                 self.setDefaultSplit(a.id, dv, d);

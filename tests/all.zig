@@ -49,5 +49,6 @@ test {
     _ = @import("clap_groups_test.zig");
     _ = @import("clap_opts_extra_test.zig");
     _ = @import("clap_default_vals_test.zig");
+    _ = @import("clap_subcommands_extra_test.zig");
     _ = @import("coverage_test.zig");
 }

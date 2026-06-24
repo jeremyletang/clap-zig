@@ -432,6 +432,13 @@ pub const Command = struct {
         return c;
     }
 
+    /// Suppress the automatic `help` subcommand (clap's `disable_help_subcommand`).
+    pub fn disableHelpSubcommand(self: Command, yes: bool) Command {
+        var c = self;
+        c.disable_help_subcommand = yes;
+        return c;
+    }
+
     /// Suppress the automatic `-V/--version` flag (clap's `disable_version_flag`).
     pub fn disableVersionFlag(self: Command, yes: bool) Command {
         var c = self;

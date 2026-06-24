@@ -178,6 +178,22 @@ pub const entries = [_]Entry{
     .{ .file = "occurrences.rs", .name = "grouped_interleaved_positional_occurrences", .status = .ported },
     .{ .file = "occurrences.rs", .name = "issue_2171", .status = .deferred, .note = "args_override_self short-cluster repeat (no get_occurrences)" },
 
+    // ----- subcommands.rs (dispatch, same-name args, -- + subcommand-like value) -----
+    .{ .file = "subcommands.rs", .name = "subcommand", .status = .ported },
+    .{ .file = "subcommands.rs", .name = "subcommand_multiple", .status = .ported },
+    .{ .file = "subcommands.rs", .name = "subcommand_none_given", .status = .ported },
+    .{ .file = "subcommands.rs", .name = "subcommand_not_recognized", .status = .ported },
+    .{ .file = "subcommands.rs", .name = "subcommand_after_argument", .status = .ported },
+    .{ .file = "subcommands.rs", .name = "subcommand_after_argument_looks_like_help", .status = .ported },
+    .{ .file = "subcommands.rs", .name = "issue_2494_subcommand_is_present", .status = .ported },
+    .{ .file = "subcommands.rs", .name = "issue_1031_args_with_same_name", .status = .ported },
+    .{ .file = "subcommands.rs", .name = "issue_1031_args_with_same_name_no_more_vals", .status = .ported },
+    .{ .file = "subcommands.rs", .name = "issue_1722_not_emit_error_when_arg_follows_similar_to_a_subcommand", .status = .ported },
+    .{ .file = "subcommands.rs", .name = "issue_1161_multiple_hyphen_hyphen", .status = .ported },
+    .{ .file = "subcommands.rs", .name = "subcommand_used_after_double_dash", .status = .deferred, .note = "'-- subcommand' tip (remove the --)" },
+    .{ .file = "subcommands.rs", .name = "duplicate_subcommand", .status = .deferred, .note = "debug_assert" },
+    .{ .file = "subcommands.rs", .name = "duplicate_subcommand_alias", .status = .deferred, .note = "debug_assert" },
+
     // ----- multicall -----
     .{ .file = "subcommands.rs", .name = "busybox_like_multicall", .status = .ported },
     .{ .file = "subcommands.rs", .name = "hostname_like_multicall", .status = .ported },

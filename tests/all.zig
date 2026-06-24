@@ -53,5 +53,6 @@ test {
     _ = @import("clap_help_extra_test.zig");
     _ = @import("clap_flatten_test.zig");
     _ = @import("clap_global_args_help_test.zig");
+    _ = @import("clap_help_headings2_test.zig");
     _ = @import("coverage_test.zig");
 }

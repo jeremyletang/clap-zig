@@ -178,6 +178,23 @@ pub const entries = [_]Entry{
     .{ .file = "occurrences.rs", .name = "grouped_interleaved_positional_occurrences", .status = .ported },
     .{ .file = "occurrences.rs", .name = "issue_2171", .status = .deferred, .note = "args_override_self short-cluster repeat (no get_occurrences)" },
 
+    // ----- help.rs: custom help headings -----
+    .{ .file = "help.rs", .name = "mixed_argument_types", .status = .ported },
+    .{ .file = "help.rs", .name = "mixed_argument_types_no_short", .status = .ported },
+    .{ .file = "help.rs", .name = "only_custom_heading_pos_no_args", .status = .ported },
+    .{ .file = "help.rs", .name = "multiple_custom_help_headers", .status = .ported },
+    .{ .file = "help.rs", .name = "mixed_argument_types_short_positional", .status = .deferred, .note = "short on positional (debug_assert)" },
+
+    // ----- help.rs: help_expected (debug_assert build validation) -----
+    .{ .file = "help.rs", .name = "help_required_and_given", .status = .deferred, .note = "help_expected (debug_assert)" },
+    .{ .file = "help.rs", .name = "help_required_and_no_args", .status = .deferred, .note = "help_expected (debug_assert)" },
+    .{ .file = "help.rs", .name = "help_required_but_not_given", .status = .deferred, .note = "help_expected (debug_assert)" },
+    .{ .file = "help.rs", .name = "help_required_but_not_given_for_one_of_two_arguments", .status = .deferred, .note = "help_expected (debug_assert)" },
+    .{ .file = "help.rs", .name = "help_required_but_not_given_settings_after_args", .status = .deferred, .note = "help_expected (debug_assert)" },
+    .{ .file = "help.rs", .name = "help_required_globally", .status = .deferred, .note = "help_expected (debug_assert)" },
+    .{ .file = "help.rs", .name = "help_required_globally_but_not_given_for_subcommand", .status = .deferred, .note = "help_expected (debug_assert)" },
+    .{ .file = "help.rs", .name = "help_required_and_given_for_subcommand", .status = .deferred, .note = "help_expected (debug_assert)" },
+
     // ----- help.rs: global args in help / next_line_help -----
     .{ .file = "help.rs", .name = "global_args_should_show_on_toplevel_help_message", .status = .ported },
     .{ .file = "help.rs", .name = "global_args_should_show_on_help_message_for_subcommand", .status = .ported },

@@ -178,6 +178,14 @@ pub const entries = [_]Entry{
     .{ .file = "occurrences.rs", .name = "grouped_interleaved_positional_occurrences", .status = .ported },
     .{ .file = "occurrences.rs", .name = "issue_2171", .status = .deferred, .note = "args_override_self short-cluster repeat (no get_occurrences)" },
 
+    // ----- help.rs: subcommand help dispatch -----
+    .{ .file = "help.rs", .name = "subcommand_short_help", .status = .ported },
+    .{ .file = "help.rs", .name = "subcommand_long_help", .status = .ported },
+    .{ .file = "help.rs", .name = "subcommand_help_rev", .status = .ported },
+    .{ .file = "help.rs", .name = "multi_level_sc_help", .status = .ported },
+    .{ .file = "help.rs", .name = "subcmd_help_subcmd_help", .status = .deferred, .note = "`help help` synthetic help-subcommand target" },
+    .{ .file = "help.rs", .name = "help_subcmd_help", .status = .deferred, .note = "`help help` synthetic help-subcommand target" },
+
     // ----- help.rs: dotted positionals, last usage, default/hidden in help -----
     .{ .file = "help.rs", .name = "positional_multiple_values_is_dotted", .status = .ported },
     .{ .file = "help.rs", .name = "positional_multiple_occurrences_is_dotted", .status = .ported },

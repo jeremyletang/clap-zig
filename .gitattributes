@@ -1,0 +1,6 @@
+# Force LF for source/text so byte-exact test snapshots match on Windows checkouts.
+*.zig    text eol=lf
+*.zon    text eol=lf
+*.md     text eol=lf
+*.yml    text eol=lf
+*.txt    text eol=lf

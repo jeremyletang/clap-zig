@@ -246,7 +246,27 @@ const Parser = struct {
         }
         self.applyEnv();
         self.applyDefaults();
+        self.recordGroups();
         return .{ .matches = self.matches };
+    }
+
+    /// Record each group's present members under the group id so a group can be
+    /// queried like an arg (clap's `get_one`/`get_many`/`contains_id` on a group).
+    fn recordGroups(self: *Parser) void {
+        for (self.cmd.groups.items) |*g| self.recordGroup(g.id);
+        for (self.cmd.arg_list.items) |*a| {
+            if (a.group_id) |gid| self.recordGroup(gid);
+        }
+    }
+
+    fn recordGroup(self: *Parser, gid: []const u8) void {
+        var members: std.ArrayListUnmanaged([]const u8) = .empty;
+        for (self.cmd.arg_list.items) |*a| {
+            if (self.cmd.argInGroupId(a, gid) and self.matches.isPresent(a.id)) {
+                members.append(self.allocator, a.id) catch @panic("clap: OOM");
+            }
+        }
+        if (members.items.len > 0) self.matches.setGroupMembers(gid, members.items);
     }
 
     /// Env fallback (clap's `Arg.env`): for each absent env-bound arg, take the

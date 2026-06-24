@@ -238,7 +238,9 @@ fn checkRequired(allocator: std.mem.Allocator, cmd: *const Command, m: *const Ar
 fn gatherRequired(allocator: std.mem.Allocator, cmd: *const Command, m: *const ArgMatches) [][]const u8 {
     var ids: Ids = .empty;
     for (cmd.arg_list.items) |*a| {
-        if (a.required_flag) unrollRequires(allocator, cmd, m, a, &ids);
+        // an arg in a group isn't individually required — the group's requirement
+        // governs it (clap's group_overrides_required)
+        if (a.required_flag and !cmd.argInAnyGroup(a)) unrollRequires(allocator, cmd, m, a, &ids);
     }
     for (cmd.groups.items) |*g| {
         if (g.is_required) pushUnique(allocator, &ids, g.id);

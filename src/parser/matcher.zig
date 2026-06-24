@@ -30,6 +30,9 @@ pub const Subcommand = struct {
 pub const ArgMatches = struct {
     allocator: std.mem.Allocator,
     map: std.StringHashMapUnmanaged(MatchedArg) = .empty,
+    /// present members of each group, keyed by group id (clap's "group acts like an
+    /// arg"); kept separate from `map` so validation/usage ignore group ids
+    group_map: std.StringHashMapUnmanaged([]const []const u8) = .empty,
     sub: ?Subcommand = null,
 
     pub fn create(allocator: std.mem.Allocator) !*ArgMatches {
@@ -46,6 +49,7 @@ pub const ArgMatches = struct {
             m.group_lens.deinit(self.allocator);
         }
         self.map.deinit(self.allocator);
+        self.group_map.deinit(self.allocator);
         if (self.sub) |s| s.matches.deinit();
     }
 
@@ -161,6 +165,13 @@ pub const ArgMatches = struct {
         self.sub = .{ .name = name, .matches = matches };
     }
 
+    /// Record a group's present member ids so the group can be queried like an arg
+    /// (clap's `get_one::<Id>`/`get_many::<Id>` on a group). Only call with a
+    /// non-empty member list.
+    pub fn setGroupMembers(self: *ArgMatches, id: []const u8, members: []const []const u8) void {
+        self.group_map.put(self.allocator, id, members) catch @panic("clap: OOM matching");
+    }
+
     /// Copy a global arg's match from `from` into self (overwriting), so a global
     /// arg matched at one level is visible at another.
     pub fn copyMatched(self: *ArgMatches, id: []const u8, from: *const ArgMatches) void {
@@ -179,12 +190,13 @@ pub const ArgMatches = struct {
     /// Whether the argument was supplied explicitly — command line or env, but
     /// not a default (clap's `is_explicit`).
     pub fn isPresent(self: *const ArgMatches, id: []const u8) bool {
+        if (self.group_map.contains(id)) return true;
         const m = self.map.getPtr(id) orelse return false;
         return m.source != .default_value;
     }
 
     pub fn contains(self: *const ArgMatches, id: []const u8) bool {
-        return self.map.contains(id);
+        return self.map.contains(id) or self.group_map.contains(id);
     }
 
     /// Where the value for `id` came from, or null if absent.
@@ -194,9 +206,12 @@ pub const ArgMatches = struct {
     }
 
     pub fn getRaw(self: *const ArgMatches, id: []const u8) ?[]const []const u8 {
-        const m = self.map.getPtr(id) orelse return null;
-        if (m.values.items.len == 0) return null;
-        return m.values.items;
+        if (self.map.getPtr(id)) |m| {
+            if (m.values.items.len == 0) return null;
+            return m.values.items;
+        }
+        // a group's "values" are the ids of its present members (group-as-arg)
+        return self.group_map.get(id);
     }
 
     pub fn getOne(self: *const ArgMatches, comptime T: type, id: []const u8) ?T {

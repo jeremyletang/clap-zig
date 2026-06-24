@@ -730,6 +730,16 @@ pub const Command = struct {
         return false;
     }
 
+    /// Whether `a` belongs to any group (declared or implicit). Such an arg's own
+    /// `required` is overridden by the group's requirement (clap's group_overrides_required).
+    pub fn argInAnyGroup(self: *const Command, a: *const Arg) bool {
+        if (a.group_id != null) return true;
+        for (self.groups.items) |*g| {
+            if (self.argInGroup(a, g)) return true;
+        }
+        return false;
+    }
+
     /// Whether `a` is a member of any `required` group (such args are shown in a
     /// group token in usage rather than under `[OPTIONS]`).
     pub fn argInRequiredGroup(self: *const Command, a: *const Arg) bool {

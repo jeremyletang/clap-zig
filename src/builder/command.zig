@@ -20,6 +20,13 @@ pub const Command = struct {
     bin_name: ?[]const u8 = null,
     aliases_list: ?[]const []const u8 = null,
     visible_aliases_list: ?[]const []const u8 = null,
+    // flag subcommands (clap's `short_flag`/`long_flag` + their aliases)
+    short_flag: ?u8 = null,
+    long_flag: ?[]const u8 = null,
+    short_flag_aliases_list: ?[]const u8 = null,
+    visible_short_flag_aliases_list: ?[]const u8 = null,
+    long_flag_aliases_list: ?[]const []const u8 = null,
+    visible_long_flag_aliases_list: ?[]const []const u8 = null,
     is_hidden: bool = false,
     /// this command's sort order as a subcommand (clap's `display_order`)
     disp_ord: ?usize = null,
@@ -28,9 +35,18 @@ pub const Command = struct {
     current_disp_ord: ?usize = 0,
     about_text: ?[]const u8 = null,
     version_str: ?[]const u8 = null,
+    long_version_str: ?[]const u8 = null,
+    /// propagate `version`/`long_version` to subcommands (clap's `propagate_version`)
+    propagate_version: bool = false,
     author_text: ?[]const u8 = null,
     help_template_text: ?[]const u8 = null,
     usage_override: ?[]const u8 = null,
+    /// placeholder for the subcommand slot in usage (clap's `subcommand_value_name`,
+    /// default `COMMAND`)
+    subcommand_value_name: ?[]const u8 = null,
+    /// heading for the subcommands help section (clap's `subcommand_help_heading`,
+    /// default `Commands`)
+    subcommand_help_heading: ?[]const u8 = null,
     /// when set (>0), help text wraps to this column count (clap's `term_width`)
     term_width: ?usize = null,
     color_choice: style.ColorChoice = .auto,
@@ -50,10 +66,21 @@ pub const Command = struct {
     allow_external_subcommands: bool = false,
     args_conflicts_with_subcommands: bool = false,
     flatten_help: bool = false,
+    /// force every arg/subcommand to render its help on the next line (clap's `next_line_help`)
+    next_line_help: bool = false,
     disable_help_flag: bool = false,
     disable_help_subcommand: bool = false,
     disable_version_flag: bool = false,
     args_override_self: bool = false,
+    /// swallow recoverable parse errors and return best-effort matches (clap's `ignore_errors`)
+    ignore_errors: bool = false,
+    /// dispatch on the first argument as an applet name (clap's `multicall`):
+    /// subcommands are rooted at their own name and the root usage is just `<COMMAND>`
+    is_multicall: bool = false,
+    /// resolve an unambiguous subcommand prefix to its full name (clap's `infer_subcommands`)
+    infer_subcommands: bool = false,
+    /// resolve an unambiguous `--long` prefix to its full flag (clap's `infer_long_args`)
+    infer_long_args: bool = false,
 
     pub fn init(allocator: std.mem.Allocator, name: []const u8) Command {
         return .{ .allocator = allocator, .name = name };
@@ -87,6 +114,48 @@ pub const Command = struct {
         var c = self;
         c.visible_aliases_list = names;
         return c;
+    }
+
+    /// Invoke this subcommand via `-X` (clap's `short_flag`).
+    pub fn shortFlag(self: Command, c: u8) Command {
+        var s = self;
+        s.short_flag = c;
+        return s;
+    }
+
+    /// Invoke this subcommand via `--name` (clap's `long_flag`).
+    pub fn longFlag(self: Command, name: []const u8) Command {
+        var s = self;
+        s.long_flag = name;
+        return s;
+    }
+
+    /// Hidden short-flag aliases (clap's `short_flag_alias(es)`).
+    pub fn shortFlagAliases(self: Command, chars: []const u8) Command {
+        var s = self;
+        s.short_flag_aliases_list = chars;
+        return s;
+    }
+
+    /// Short-flag aliases shown in help (clap's `visible_short_flag_alias(es)`).
+    pub fn visibleShortFlagAliases(self: Command, chars: []const u8) Command {
+        var s = self;
+        s.visible_short_flag_aliases_list = chars;
+        return s;
+    }
+
+    /// Hidden long-flag aliases (clap's `long_flag_alias(es)`).
+    pub fn longFlagAliases(self: Command, names: []const []const u8) Command {
+        var s = self;
+        s.long_flag_aliases_list = names;
+        return s;
+    }
+
+    /// Long-flag aliases shown in help (clap's `visible_long_flag_alias(es)`).
+    pub fn visibleLongFlagAliases(self: Command, names: []const []const u8) Command {
+        var s = self;
+        s.visible_long_flag_aliases_list = names;
+        return s;
     }
 
     /// Longer "about" shown only in `--help` (clap's `long_about`).
@@ -127,6 +196,35 @@ pub const Command = struct {
     pub fn version(self: Command, v: []const u8) Command {
         var c = self;
         c.version_str = v;
+        return c;
+    }
+
+    /// Rename the subcommand placeholder in usage (clap's `subcommand_value_name`).
+    pub fn subcommandValueName(self: Command, name: []const u8) Command {
+        var c = self;
+        c.subcommand_value_name = name;
+        return c;
+    }
+
+    /// Rename the subcommands help section heading (clap's `subcommand_help_heading`).
+    pub fn subcommandHelpHeading(self: Command, heading: []const u8) Command {
+        var c = self;
+        c.subcommand_help_heading = heading;
+        return c;
+    }
+
+    /// A longer version string, shown for `--version` (clap's `long_version`).
+    /// `-V` keeps using `version`; if only one is set, both flags use it.
+    pub fn longVersion(self: Command, v: []const u8) Command {
+        var c = self;
+        c.long_version_str = v;
+        return c;
+    }
+
+    /// Propagate `version`/`long_version` to subcommands (clap's `propagate_version`).
+    pub fn propagateVersion(self: Command, yes: bool) Command {
+        var c = self;
+        c.propagate_version = yes;
         return c;
     }
 
@@ -179,7 +277,7 @@ pub const Command = struct {
 
     /// Whether the auto `-V/--version` flag applies (version set and not disabled).
     pub fn hasVersionFlag(self: *const Command) bool {
-        return self.version_str != null and !self.disable_version_flag;
+        return (self.version_str != null or self.long_version_str != null) and !self.disable_version_flag;
     }
 
     pub fn binName(self: Command, name: []const u8) Command {
@@ -288,6 +386,13 @@ pub const Command = struct {
         return c;
     }
 
+    /// Force every arg/subcommand's help onto the next line (clap's `next_line_help`).
+    pub fn nextLineHelp(self: Command, yes: bool) Command {
+        var c = self;
+        c.next_line_help = yes;
+        return c;
+    }
+
     /// Allow a non-multiple arg to be given more than once, keeping the last
     /// (clap's `args_override_self`); otherwise a repeat is an error.
     pub fn argsOverrideSelf(self: Command, yes: bool) Command {
@@ -296,10 +401,50 @@ pub const Command = struct {
         return c;
     }
 
+    /// Dispatch on the first argument as an applet name, BusyBox-style (clap's
+    /// `multicall`). Each subcommand becomes a top-level applet (its `bin_name` is
+    /// its own name) and the root's usage is just the subcommand placeholder.
+    pub fn multicall(self: Command, yes: bool) Command {
+        var c = self;
+        c.is_multicall = yes;
+        return c;
+    }
+
+    /// Swallow recoverable parse errors and return best-effort matches; help and
+    /// version requests still display (clap's `ignore_errors`).
+    pub fn ignoreErrors(self: Command, yes: bool) Command {
+        var c = self;
+        c.ignore_errors = yes;
+        return c;
+    }
+
+    /// Resolve an unambiguous subcommand-name prefix to the full subcommand
+    /// (clap's `infer_subcommands`).
+    pub fn inferSubcommands(self: Command, yes: bool) Command {
+        var c = self;
+        c.infer_subcommands = yes;
+        return c;
+    }
+
+    /// Resolve an unambiguous `--long` prefix to the full flag (clap's
+    /// `infer_long_args`).
+    pub fn inferLongArgs(self: Command, yes: bool) Command {
+        var c = self;
+        c.infer_long_args = yes;
+        return c;
+    }
+
     /// Suppress the automatic `-h/--help` flag (clap's `disable_help_flag`).
     pub fn disableHelpFlag(self: Command, yes: bool) Command {
         var c = self;
         c.disable_help_flag = yes;
+        return c;
+    }
+
+    /// Suppress the automatic `help` subcommand (clap's `disable_help_subcommand`).
+    pub fn disableHelpSubcommand(self: Command, yes: bool) Command {
+        var c = self;
+        c.disable_help_subcommand = yes;
         return c;
     }
 
@@ -333,8 +478,19 @@ pub const Command = struct {
         }
         for (self.subcommands.items) |*sc| {
             sc.color_choice = self.color_choice; // color is global (clap)
-            const child = std.fmt.allocPrint(self.allocator, "{s} {s}", .{ path, sc.name }) catch
-                @panic("clap: OOM building command");
+            if (self.ignore_errors) sc.ignore_errors = true; // propagated to subcommands
+            if (self.propagate_version) {
+                sc.propagate_version = true;
+                if (sc.version_str == null) sc.version_str = self.version_str;
+                if (sc.long_version_str == null) sc.long_version_str = self.long_version_str;
+            }
+            // a multicall command's subcommands are top-level applets: their path
+            // starts at their own name, not "<root> <name>"
+            const child = if (self.is_multicall)
+                sc.name
+            else
+                std.fmt.allocPrint(self.allocator, "{s} {s}", .{ path, sc.name }) catch
+                    @panic("clap: OOM building command");
             sc.propagate(child, globals.items);
         }
     }
@@ -380,6 +536,21 @@ pub const Command = struct {
         return null;
     }
 
+    pub const ArgInfer = union(enum) { none, ambiguous, unique: *const Arg };
+
+    /// Ambiguity-aware prefix lookup over long names + aliases (infer_long_args).
+    /// An exact match is the caller's job (`findArgByLong`); this handles prefixes.
+    pub fn inferArgByLong(self: *const Command, prefix: []const u8) ArgInfer {
+        var found: ?*const Arg = null;
+        for (self.arg_list.items) |*a| {
+            if (a.anyLongStartsWith(prefix)) {
+                if (found != null) return .ambiguous;
+                found = a;
+            }
+        }
+        return if (found) |f| .{ .unique = f } else .none;
+    }
+
     pub fn findArgByShort(self: *const Command, c: u8) ?*const Arg {
         for (self.arg_list.items) |*a| {
             if (a.matchesShort(c)) return a;
@@ -408,6 +579,56 @@ pub const Command = struct {
         return null;
     }
 
+    pub const SubInfer = union(enum) { none, ambiguous, unique: *const Command };
+
+    /// Ambiguity-aware prefix lookup over subcommand names + aliases
+    /// (clap's `infer_subcommands`). Prefixes of one subcommand are unique even
+    /// when several of its aliases match.
+    pub fn inferSubcommand(self: *const Command, prefix: []const u8) SubInfer {
+        var found: ?*const Command = null;
+        for (self.subcommands.items) |*sc| {
+            if (sc.anyNameStartsWith(prefix)) {
+                if (found != null) return .ambiguous;
+                found = sc;
+            }
+        }
+        return if (found) |f| .{ .unique = f } else .none;
+    }
+
+    /// `inferSubcommand` over long-flag subcommand names + long-flag aliases.
+    pub fn inferFlagSubcommandLong(self: *const Command, prefix: []const u8) SubInfer {
+        var found: ?*const Command = null;
+        for (self.subcommands.items) |*sc| {
+            if (sc.anyLongFlagStartsWith(prefix)) {
+                if (found != null) return .ambiguous;
+                found = sc;
+            }
+        }
+        return if (found) |f| .{ .unique = f } else .none;
+    }
+
+    fn anyNameStartsWith(self: *const Command, prefix: []const u8) bool {
+        if (std.mem.startsWith(u8, self.name, prefix)) return true;
+        if (self.aliases_list) |al| {
+            for (al) |x| if (std.mem.startsWith(u8, x, prefix)) return true;
+        }
+        if (self.visible_aliases_list) |al| {
+            for (al) |x| if (std.mem.startsWith(u8, x, prefix)) return true;
+        }
+        return false;
+    }
+
+    fn anyLongFlagStartsWith(self: *const Command, prefix: []const u8) bool {
+        if (self.long_flag) |l| if (std.mem.startsWith(u8, l, prefix)) return true;
+        if (self.long_flag_aliases_list) |al| {
+            for (al) |x| if (std.mem.startsWith(u8, x, prefix)) return true;
+        }
+        if (self.visible_long_flag_aliases_list) |al| {
+            for (al) |x| if (std.mem.startsWith(u8, x, prefix)) return true;
+        }
+        return false;
+    }
+
     /// Whether `name` is this command's name or one of its aliases.
     pub fn matchesName(self: *const Command, name: []const u8) bool {
         if (std.mem.eql(u8, self.name, name)) return true;
@@ -418,6 +639,67 @@ pub const Command = struct {
             for (al) |x| if (std.mem.eql(u8, x, name)) return true;
         }
         return false;
+    }
+
+    /// A subcommand whose short flag (or short-flag alias) is `c`.
+    pub fn findFlagSubcommandShort(self: *const Command, c: u8) ?*const Command {
+        for (self.subcommands.items) |*sc| {
+            if (sc.matchesShortFlag(c)) return sc;
+        }
+        return null;
+    }
+
+    /// A subcommand whose long flag (or long-flag alias) is `name`.
+    pub fn findFlagSubcommandLong(self: *const Command, name: []const u8) ?*const Command {
+        for (self.subcommands.items) |*sc| {
+            if (sc.matchesLongFlag(name)) return sc;
+        }
+        return null;
+    }
+
+    fn matchesShortFlag(self: *const Command, c: u8) bool {
+        if (self.short_flag == c) return true;
+        if (self.short_flag_aliases_list) |al| {
+            for (al) |x| if (x == c) return true;
+        }
+        if (self.visible_short_flag_aliases_list) |al| {
+            for (al) |x| if (x == c) return true;
+        }
+        return false;
+    }
+
+    fn matchesLongFlag(self: *const Command, name: []const u8) bool {
+        if (self.long_flag) |l| if (std.mem.eql(u8, l, name)) return true;
+        if (self.long_flag_aliases_list) |al| {
+            for (al) |x| if (std.mem.eql(u8, x, name)) return true;
+        }
+        if (self.visible_long_flag_aliases_list) |al| {
+            for (al) |x| if (std.mem.eql(u8, x, name)) return true;
+        }
+        return false;
+    }
+
+    /// The binary name shown in this command's own usage line. For a flag
+    /// subcommand the trailing name segment becomes `{name|--long|-short}`
+    /// (clap's flag-subcommand usage name).
+    pub fn usageName(self: *const Command, allocator: std.mem.Allocator) []const u8 {
+        if (self.short_flag == null and self.long_flag == null) return self.displayName();
+        const base = self.bin_name orelse self.name;
+        const prefix = if (std.mem.lastIndexOfScalar(u8, base, ' ')) |i| base[0 .. i + 1] else "";
+        var b: std.ArrayListUnmanaged(u8) = .empty;
+        b.appendSlice(allocator, prefix) catch @panic("clap: OOM");
+        b.appendSlice(allocator, "{") catch @panic("clap: OOM");
+        b.appendSlice(allocator, self.name) catch @panic("clap: OOM");
+        if (self.long_flag) |l| {
+            b.appendSlice(allocator, "|--") catch @panic("clap: OOM");
+            b.appendSlice(allocator, l) catch @panic("clap: OOM");
+        }
+        if (self.short_flag) |c| {
+            b.appendSlice(allocator, "|-") catch @panic("clap: OOM");
+            b.append(allocator, c) catch @panic("clap: OOM");
+        }
+        b.appendSlice(allocator, "}") catch @panic("clap: OOM");
+        return b.items;
     }
 
     pub fn findGroup(self: *const Command, id: []const u8) ?*const ArgGroup {
@@ -460,6 +742,16 @@ pub const Command = struct {
             if (a.group_id) |gid| {
                 if (std.mem.eql(u8, gid, id)) return true;
             }
+        }
+        return false;
+    }
+
+    /// Whether `a` belongs to any group (declared or implicit). Such an arg's own
+    /// `required` is overridden by the group's requirement (clap's group_overrides_required).
+    pub fn argInAnyGroup(self: *const Command, a: *const Arg) bool {
+        if (a.group_id != null) return true;
+        for (self.groups.items) |*g| {
+            if (self.argInGroup(a, g)) return true;
         }
         return false;
     }

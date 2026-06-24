@@ -51,6 +51,8 @@ pub const Error = struct {
     used_ids: ?[]const []const u8 = null,
     /// for `display_help`: whether `--help` (long) vs `-h` (short) was requested
     help_long: bool = false,
+    /// for `display_version`: whether `--version` (long) vs `-V` (short) was requested
+    version_long: bool = false,
     /// for `argument_conflict`: the "cannot be used multiple times" variant
     multiple_use: bool = false,
     /// for `argument_conflict`: the other args this one conflicts with (display strings)
@@ -60,4 +62,7 @@ pub const Error = struct {
     /// for `wrong_number_of_values` / `too_few_values`: expected vs provided counts
     n_expected: usize = 0,
     n_provided: usize = 0,
+    /// "did you mean" candidates (clap's suggestions); the context word is taken
+    /// from `kind`: argument / subcommand / value
+    suggestions: ?[]const []const u8 = null,
 };

@@ -45,6 +45,11 @@ pub const Arg = struct {
     action_val: ArgAction = .set,
     num_args: ?range.ValueRange = null,
     value_delimiter: ?u8 = null,
+    /// a token that ends value collection for this arg (clap's `value_terminator`)
+    value_terminator: ?[]const u8 = null,
+    /// once this (variadic) positional starts collecting, every later token —
+    /// flags, `--`, hyphen values — is a literal value (clap's `trailing_var_arg`)
+    trailing_var_arg: bool = false,
     /// help section heading (null = the default `Options:` section). `*_set`
     /// distinguishes "explicitly set" (incl. to null) from "inherit the
     /// command's current `next_help_heading`".
@@ -59,7 +64,9 @@ pub const Arg = struct {
     last_flag: bool = false,
     require_equals: bool = false,
     default_value: ?[]const u8 = null,
+    default_values: ?[]const []const u8 = null,
     default_missing_value: ?[]const u8 = null,
+    env_var: ?[]const u8 = null,
     possible_values: ?[]const []const u8 = null,
     value_parser_fn: ?value_parser.ParserFn = null,
     value_help: ?[]const PossibleValue = null,
@@ -76,6 +83,8 @@ pub const Arg = struct {
     overrides: ?[]const []const u8 = null,
     is_exclusive: bool = false,
     is_global: bool = false,
+    allow_hyphen_values: bool = false,
+    allow_negative_numbers: bool = false,
     is_hidden: bool = false,
     hide_short_help: bool = false,
     hide_long_help: bool = false,
@@ -138,6 +147,21 @@ pub const Arg = struct {
         }
         if (self.visible_aliases_list) |al| {
             for (al) |x| if (std.mem.eql(u8, x, name)) return true;
+        }
+        return false;
+    }
+
+    /// Whether `prefix` is a prefix of this arg's long name or any of its long
+    /// aliases (clap's `infer_long_args` prefix matching).
+    pub fn anyLongStartsWith(self: *const Arg, prefix: []const u8) bool {
+        if (self.long_name) |l| {
+            if (std.mem.startsWith(u8, l, prefix)) return true;
+        }
+        if (self.aliases_list) |al| {
+            for (al) |x| if (std.mem.startsWith(u8, x, prefix)) return true;
+        }
+        if (self.visible_aliases_list) |al| {
+            for (al) |x| if (std.mem.startsWith(u8, x, prefix)) return true;
         }
         return false;
     }
@@ -218,11 +242,43 @@ pub const Arg = struct {
         return a;
     }
 
+    /// Multiple default values used when the arg is absent (clap's `default_values`).
+    pub fn defaultValues(self: Arg, vals: []const []const u8) Arg {
+        var a = self;
+        a.default_values = vals;
+        return a;
+    }
+
+    /// Fall back to the named environment variable when the arg is absent from
+    /// the command line (clap's `env`). The value is supplied by an `EnvSource`
+    /// passed to `getMatchesEnv`; precedence is CLI > env > default.
+    pub fn env(self: Arg, name: []const u8) Arg {
+        var a = self;
+        a.env_var = name;
+        return a;
+    }
+
     /// Split each supplied value on this byte into separate values (clap's
     /// `value_delimiter`).
     pub fn valueDelimiter(self: Arg, c: u8) Arg {
         var a = self;
         a.value_delimiter = c;
+        return a;
+    }
+
+    /// A token that ends value collection for this arg; it is consumed but not
+    /// stored, and following tokens fill later args (clap's `value_terminator`).
+    pub fn valueTerminator(self: Arg, term: []const u8) Arg {
+        var a = self;
+        a.value_terminator = term;
+        return a;
+    }
+
+    /// Treat every token after this positional's first value as a literal value,
+    /// including flags and `--` (clap's `trailing_var_arg`).
+    pub fn trailingVarArg(self: Arg, yes: bool) Arg {
+        var a = self;
+        a.trailing_var_arg = yes;
         return a;
     }
 
@@ -361,6 +417,28 @@ pub const Arg = struct {
         a.help_heading = heading;
         a.help_heading_set = true;
         return a;
+    }
+
+    /// Accept values that look like flags (`-x`, `--y`) for this arg (clap's
+    /// `allow_hyphen_values`).
+    pub fn allowHyphenValues(self: Arg, yes: bool) Arg {
+        var a = self;
+        a.allow_hyphen_values = yes;
+        return a;
+    }
+
+    /// Accept negative-number values (`-20`, `-1.2`) for this arg, while other
+    /// `-`-tokens are still flags (clap's `allow_negative_numbers`).
+    pub fn allowNegativeNumbers(self: Arg, yes: bool) Arg {
+        var a = self;
+        a.allow_negative_numbers = yes;
+        return a;
+    }
+
+    /// Whether a leading-`-` `token` should be taken as a value for this arg.
+    pub fn acceptsHyphenValue(self: *const Arg, token: []const u8) bool {
+        if (self.allow_hyphen_values) return true;
+        return self.allow_negative_numbers and isNegativeNumber(token);
     }
 
     /// Omit this argument from help output and usage (clap's `hide`).
@@ -520,6 +598,13 @@ pub const Arg = struct {
         return null;
     }
 };
+
+/// Whether `s` is a negative number (`-20`, `-1.2`) — for `allow_negative_numbers`.
+pub fn isNegativeNumber(s: []const u8) bool {
+    if (s.len < 2 or s[0] != '-') return false;
+    _ = std.fmt.parseFloat(f64, s) catch return false;
+    return true;
+}
 
 const testing = std.testing;
 

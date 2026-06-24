@@ -1,5 +1,6 @@
 const std = @import("std");
 const errors = @import("../error.zig");
+const command = @import("../builder/command.zig");
 const help = @import("help.zig");
 const usage = @import("usage.zig");
 const layout = @import("layout.zig");
@@ -24,9 +25,13 @@ pub fn render(allocator: std.mem.Allocator, e: errors.Error) []const u8 {
             return help.render(allocator, e.cmd, e.help_long);
         },
         .display_version => {
+            const ver = if (e.version_long)
+                e.cmd.long_version_str orelse e.cmd.version_str
+            else
+                e.cmd.version_str orelse e.cmd.long_version_str;
             return std.fmt.allocPrint(allocator, "{s} {s}\n", .{
                 e.cmd.name,
-                e.cmd.version_str orelse "",
+                ver orelse "",
             }) catch @panic("clap: OOM rendering output");
         },
         else => {},
@@ -36,18 +41,84 @@ pub fn render(allocator: std.mem.Allocator, e: errors.Error) []const u8 {
     b.addByte(' ');
     appendMessage(&b, e);
     b.addByte('\n');
+    appendSuggestions(&b, e);
     if (usesUsage(e.kind)) {
         b.addByte('\n');
         b.add(usage.errorUsage(allocator, e.cmd, e.used_ids orelse &.{}));
         b.addByte('\n');
     }
-    b.add("\nFor more information, try '--help'.\n");
+    if (helpHint(allocator, e.cmd)) |h| {
+        b.print("\nFor more information, try '{s}'.\n", .{h});
+    } else {
+        b.addByte('\n');
+    }
     return b.items();
+}
+
+/// The token clap suggests for more help (clap's try-help logic): the auto or
+/// user-defined help flag (prefer `--long`, else `-short`), else the `help`
+/// subcommand, else nothing.
+fn helpHint(allocator: std.mem.Allocator, cmd: *const command.Command) ?[]const u8 {
+    if (!cmd.is_multicall and !cmd.disable_help_flag) return "--help";
+    for (cmd.arg_list.items) |*a| {
+        switch (a.action_val) {
+            .help, .help_short, .help_long => {
+                if (a.long_name) |l| return std.fmt.allocPrint(allocator, "--{s}", .{l}) catch @panic("clap: OOM");
+                if (a.short_char) |c| return std.fmt.allocPrint(allocator, "-{c}", .{c}) catch @panic("clap: OOM");
+            },
+            else => {},
+        }
+    }
+    if (cmd.hasSubcommands() and !cmd.disable_help_subcommand) return "help";
+    return null;
 }
 
 /// Whether this error kind prints a `Usage:` block (clap omits it for invalid_value).
 fn usesUsage(kind: errors.ErrorKind) bool {
     return kind != .invalid_value;
+}
+
+/// Rust-`{:?}`-style quoting for a possible value (clap's `Escape`): wrap in
+/// double quotes (escaping `"`/`\`) when empty or containing whitespace.
+fn escapeValue(allocator: std.mem.Allocator, v: []const u8) []const u8 {
+    var needs = v.len == 0;
+    for (v) |c| {
+        if (std.ascii.isWhitespace(c)) needs = true;
+    }
+    if (!needs) return v;
+    var b = Buf{ .allocator = allocator };
+    b.addByte('"');
+    for (v) |c| {
+        if (c == '"' or c == '\\') b.addByte('\\');
+        b.addByte(c);
+    }
+    b.addByte('"');
+    return b.items();
+}
+
+/// The "tip:" line for a "did you mean" suggestion (clap's `did_you_mean`).
+fn appendSuggestions(b: *Buf, e: errors.Error) void {
+    const sugg = e.suggestions orelse return;
+    if (sugg.len == 0) return;
+    const ctx = switch (e.kind) {
+        .invalid_subcommand => "subcommand",
+        .invalid_value => "value",
+        else => "argument",
+    };
+    b.add("\n  ");
+    b.role(.valid, "tip:");
+    if (sugg.len == 1) {
+        b.print(" a similar {s} exists: ", .{ctx});
+    } else {
+        b.print(" some similar {s}s exist: ", .{ctx});
+    }
+    for (sugg, 0..) |s, i| {
+        if (i != 0) b.add(", ");
+        b.addByte('\'');
+        b.role(.valid, s);
+        b.addByte('\'');
+    }
+    b.addByte('\n');
 }
 
 fn appendMessage(b: *Buf, e: errors.Error) void {
@@ -70,7 +141,7 @@ fn appendMessage(b: *Buf, e: errors.Error) void {
                 b.add("\n  [possible values: ");
                 for (pv, 0..) |v, i| {
                     if (i != 0) b.add(", ");
-                    b.add(v);
+                    b.role(.valid, escapeValue(b.allocator, v));
                 }
                 b.add("]");
             }

@@ -4,6 +4,8 @@ const matcher = @import("matcher.zig");
 const errors = @import("../error.zig");
 const layout = @import("../output/layout.zig");
 const arg = @import("../builder/arg.zig");
+const suggest = @import("../suggest.zig");
+const range = @import("../builder/range.zig");
 
 const Command = command.Command;
 const ArgMatches = matcher.ArgMatches;
@@ -14,15 +16,39 @@ const Ids = std.ArrayListUnmanaged([]const u8);
 /// Post-parse validation, applied to a command and its matches recursively.
 /// Port of https://github.com/clap-rs/clap/blob/master/clap_builder/src/parser/validator.rs
 pub fn validate(allocator: std.mem.Allocator, cmd: *const Command, m: *const ArgMatches) ?Error {
+    // ignore_errors returns best-effort matches: skip all post-parse validation
+    if (cmd.ignore_errors) return null;
     if (cmd.arg_required_else_help and !m.suppliedAnything()) {
         return .{ .kind = .display_help_on_missing_argument_or_subcommand, .cmd = cmd };
     }
+    if (checkPositionalCounts(allocator, cmd, m)) |e| return e;
     if (checkPossibleValues(allocator, cmd, m)) |e| return e;
     if (checkArgConflicts(allocator, cmd, m)) |e| return e;
     if (checkGroupConflicts(allocator, cmd, m)) |e| return e;
     if (checkRequired(allocator, cmd, m)) |e| return e;
     if (checkSubcommandRequired(cmd, m)) |e| return e;
     return validateSubcommand(allocator, cmd, m);
+}
+
+/// Enforce a positional's `num_args` after parsing: a fixed count over/under-fills
+/// to `wrong_number_of_values`, a range under-fills to `too_few_values` (the
+/// over-fill of a range is caught during parsing as `too_many_values`).
+fn checkPositionalCounts(allocator: std.mem.Allocator, cmd: *const Command, m: *const ArgMatches) ?Error {
+    for (cmd.arg_list.items) |*a| {
+        if (!a.isPositional()) continue;
+        const vals = m.getRaw(a.id) orelse continue;
+        if (vals.len == 0) continue;
+        const r = a.effectiveNumArgs();
+        if (vals.len < r.min) {
+            const disp = layout.positionalNotationStr(allocator, a);
+            const kind: errors.ErrorKind = if (r.min == r.max) .wrong_number_of_values else .too_few_values;
+            return .{ .kind = kind, .cmd = cmd, .arg = disp, .n_expected = r.min, .n_provided = vals.len };
+        }
+        if (r.max != range.ValueRange.unbounded and vals.len > r.max) {
+            return .{ .kind = .wrong_number_of_values, .cmd = cmd, .arg = layout.positionalNotationStr(allocator, a), .n_expected = r.max, .n_provided = vals.len };
+        }
+    }
+    return null;
 }
 
 fn checkPossibleValues(allocator: std.mem.Allocator, cmd: *const Command, m: *const ArgMatches) ?Error {
@@ -212,7 +238,9 @@ fn checkRequired(allocator: std.mem.Allocator, cmd: *const Command, m: *const Ar
 fn gatherRequired(allocator: std.mem.Allocator, cmd: *const Command, m: *const ArgMatches) [][]const u8 {
     var ids: Ids = .empty;
     for (cmd.arg_list.items) |*a| {
-        if (a.required_flag) unrollRequires(allocator, cmd, m, a, &ids);
+        // an arg in a group isn't individually required — the group's requirement
+        // governs it (clap's group_overrides_required)
+        if (a.required_flag and !cmd.argInAnyGroup(a)) unrollRequires(allocator, cmd, m, a, &ids);
     }
     for (cmd.groups.items) |*g| {
         if (g.is_required) pushUnique(allocator, &ids, g.id);
@@ -429,6 +457,11 @@ const InvalidExtra = struct {
 };
 
 fn invalidValue(allocator: std.mem.Allocator, cmd: *const Command, a: *const Arg, value: []const u8, extra: InvalidExtra) Error {
+    var suggestions: ?[]const []const u8 = null;
+    if (extra.possible_values) |pv| {
+        const cands = suggest.didYouMean(allocator, value, pv);
+        if (cands.len != 0) suggestions = cands;
+    }
     return .{
         .kind = .invalid_value,
         .cmd = cmd,
@@ -436,5 +469,6 @@ fn invalidValue(allocator: std.mem.Allocator, cmd: *const Command, a: *const Arg
         .value = value,
         .possible_values = extra.possible_values,
         .reason = extra.reason,
+        .suggestions = suggestions,
     };
 }

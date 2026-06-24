@@ -1,15 +1,19 @@
 const std = @import("std");
 const value_parser = @import("../builder/value_parser.zig");
 
-/// Where a stored value came from (precedence: command_line > default_value).
+/// Where a stored value came from (precedence: command_line > env > default_value).
+/// `env`/`command_line` are "explicit" (clap's `is_explicit`); only a default is not.
 /// Port of https://github.com/clap-rs/clap/blob/master/clap_builder/src/parser/matches/value_source.rs
-pub const ValueSource = enum { default_value, command_line };
+pub const ValueSource = enum { default_value, env, command_line };
 
 /// Accumulated values for a single argument id, plus the parse-index of each
 /// (clap's `cur_idx`: flag-char and value slots counted 1-based, binary = 0).
 pub const MatchedArg = struct {
     values: std.ArrayListUnmanaged([]const u8) = .empty,
     indices: std.ArrayListUnmanaged(usize) = .empty,
+    /// number of values in each occurrence group (clap's `get_occurrences`); the
+    /// lengths partition `values` into per-occurrence runs
+    group_lens: std.ArrayListUnmanaged(usize) = .empty,
     source: ValueSource = .command_line,
     occurrences: usize = 0,
 };
@@ -26,6 +30,9 @@ pub const Subcommand = struct {
 pub const ArgMatches = struct {
     allocator: std.mem.Allocator,
     map: std.StringHashMapUnmanaged(MatchedArg) = .empty,
+    /// present members of each group, keyed by group id (clap's "group acts like an
+    /// arg"); kept separate from `map` so validation/usage ignore group ids
+    group_map: std.StringHashMapUnmanaged([]const []const u8) = .empty,
     sub: ?Subcommand = null,
 
     pub fn create(allocator: std.mem.Allocator) !*ArgMatches {
@@ -39,8 +46,10 @@ pub const ArgMatches = struct {
         while (it.next()) |m| {
             m.values.deinit(self.allocator);
             m.indices.deinit(self.allocator);
+            m.group_lens.deinit(self.allocator);
         }
         self.map.deinit(self.allocator);
+        self.group_map.deinit(self.allocator);
         if (self.sub) |s| s.matches.deinit();
     }
 
@@ -63,6 +72,15 @@ pub const ArgMatches = struct {
         const m = self.getOrPut(id);
         m.values.append(self.allocator, val) catch @panic("clap: OOM matching");
         m.indices.append(self.allocator, index) catch @panic("clap: OOM matching");
+        // grow the current occurrence group (no-op for non-grouped defaults/env)
+        if (m.group_lens.items.len > 0) m.group_lens.items[m.group_lens.items.len - 1] += 1;
+    }
+
+    /// Open a new occurrence group; subsequent `pushValue`s grow it (clap groups
+    /// each option occurrence / contiguous positional run for `get_occurrences`).
+    pub fn beginGroup(self: *ArgMatches, id: []const u8) void {
+        const m = self.getOrPut(id);
+        m.group_lens.append(self.allocator, 0) catch @panic("clap: OOM matching");
     }
 
     /// Seed a default value (only if the arg is otherwise absent).
@@ -86,11 +104,24 @@ pub const ArgMatches = struct {
         }
     }
 
+    /// Seed value(s) from an environment variable (only if otherwise absent).
+    /// Higher precedence than a default, lower than the command line.
+    pub fn setEnv(self: *ArgMatches, id: []const u8, vals: []const []const u8, first_index: usize) void {
+        if (self.map.contains(id)) return;
+        const m = self.getOrPut(id);
+        m.source = .env;
+        for (vals, 0..) |v, i| {
+            m.values.append(self.allocator, v) catch @panic("clap: OOM matching");
+            m.indices.append(self.allocator, first_index + i) catch @panic("clap: OOM matching");
+        }
+    }
+
     /// Clear a prior occurrence so it can be re-recorded (clap's `args_override_self`).
     pub fn reset(self: *ArgMatches, id: []const u8) void {
         if (self.map.getPtr(id)) |m| {
             m.values.clearRetainingCapacity();
             m.indices.clearRetainingCapacity();
+            m.group_lens.clearRetainingCapacity();
             m.occurrences = 0;
         }
     }
@@ -102,6 +133,7 @@ pub const ArgMatches = struct {
             var m = kv.value;
             m.values.deinit(self.allocator);
             m.indices.deinit(self.allocator);
+            m.group_lens.deinit(self.allocator);
         }
     }
 
@@ -111,11 +143,33 @@ pub const ArgMatches = struct {
         if (self.map.getPtr(id)) |m| {
             m.values.clearRetainingCapacity();
             m.indices.clearRetainingCapacity();
+            m.group_lens.clearRetainingCapacity();
         }
+    }
+
+    /// Values grouped by occurrence (clap's `get_occurrences`): each inner slice
+    /// is one option occurrence or one contiguous positional run. Null if absent.
+    pub fn getOccurrences(self: *const ArgMatches, allocator: std.mem.Allocator, id: []const u8) ?[]const []const []const u8 {
+        const m = self.map.getPtr(id) orelse return null;
+        if (m.group_lens.items.len == 0) return null;
+        const groups = allocator.alloc([]const []const u8, m.group_lens.items.len) catch @panic("clap: OOM matching");
+        var off: usize = 0;
+        for (m.group_lens.items, 0..) |len, i| {
+            groups[i] = m.values.items[off .. off + len];
+            off += len;
+        }
+        return groups;
     }
 
     pub fn setSubcommand(self: *ArgMatches, name: []const u8, matches: *ArgMatches) void {
         self.sub = .{ .name = name, .matches = matches };
+    }
+
+    /// Record a group's present member ids so the group can be queried like an arg
+    /// (clap's `get_one::<Id>`/`get_many::<Id>` on a group). Only call with a
+    /// non-empty member list.
+    pub fn setGroupMembers(self: *ArgMatches, id: []const u8, members: []const []const u8) void {
+        self.group_map.put(self.allocator, id, members) catch @panic("clap: OOM matching");
     }
 
     /// Copy a global arg's match from `from` into self (overwriting), so a global
@@ -133,20 +187,31 @@ pub const ArgMatches = struct {
 
     // ----- retrieval -----
 
-    /// Whether the argument was supplied on the command line (defaults don't count).
+    /// Whether the argument was supplied explicitly — command line or env, but
+    /// not a default (clap's `is_explicit`).
     pub fn isPresent(self: *const ArgMatches, id: []const u8) bool {
+        if (self.group_map.contains(id)) return true;
         const m = self.map.getPtr(id) orelse return false;
-        return m.source == .command_line;
+        return m.source != .default_value;
     }
 
     pub fn contains(self: *const ArgMatches, id: []const u8) bool {
-        return self.map.contains(id);
+        return self.map.contains(id) or self.group_map.contains(id);
+    }
+
+    /// Where the value for `id` came from, or null if absent.
+    pub fn valueSource(self: *const ArgMatches, id: []const u8) ?ValueSource {
+        const m = self.map.getPtr(id) orelse return null;
+        return m.source;
     }
 
     pub fn getRaw(self: *const ArgMatches, id: []const u8) ?[]const []const u8 {
-        const m = self.map.getPtr(id) orelse return null;
-        if (m.values.items.len == 0) return null;
-        return m.values.items;
+        if (self.map.getPtr(id)) |m| {
+            if (m.values.items.len == 0) return null;
+            return m.values.items;
+        }
+        // a group's "values" are the ids of its present members (group-as-arg)
+        return self.group_map.get(id);
     }
 
     pub fn getOne(self: *const ArgMatches, comptime T: type, id: []const u8) ?T {
@@ -178,10 +243,15 @@ pub const ArgMatches = struct {
         return m.indices.items;
     }
 
-    /// Number of occurrences of a `Count`-action argument (0 if absent).
+    /// Number of occurrences of a `Count`-action argument. Falls back to the
+    /// stored value when the arg is absent but carries a (conditional) default.
     pub fn getCount(self: *const ArgMatches, id: []const u8) usize {
         const m = self.map.getPtr(id) orelse return 0;
-        return m.occurrences;
+        if (m.occurrences > 0) return m.occurrences;
+        if (m.values.items.len > 0) {
+            return std.fmt.parseInt(usize, m.values.items[m.values.items.len - 1], 10) catch 0;
+        }
+        return 0;
     }
 
     pub fn subcommand(self: *const ArgMatches) ?Subcommand {
@@ -194,7 +264,7 @@ pub const ArgMatches = struct {
         var ids: std.ArrayListUnmanaged([]const u8) = .empty;
         var it = self.map.iterator();
         while (it.next()) |entry| {
-            if (entry.value_ptr.source == .command_line) {
+            if (entry.value_ptr.source != .default_value) {
                 ids.append(allocator, entry.key_ptr.*) catch @panic("clap: OOM");
             }
         }
@@ -207,7 +277,7 @@ pub const ArgMatches = struct {
         if (self.sub != null) return true;
         var it = self.map.valueIterator();
         while (it.next()) |m| {
-            if (m.source == .command_line) return true;
+            if (m.source != .default_value) return true;
         }
         return false;
     }

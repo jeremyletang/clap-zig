@@ -18,6 +18,9 @@ const help_flag_help = "Print help";
 /// only when the command actually has long-only content); otherwise the compact
 /// `-h` layout. Port of https://github.com/clap-rs/clap/blob/master/clap_builder/src/output/help_template.rs
 pub fn render(allocator: std.mem.Allocator, cmd: *const Command, long: bool) []const u8 {
+    const prev_nl = layout.force_next_line;
+    layout.force_next_line = cmd.next_line_help;
+    defer layout.force_next_line = prev_nl;
     if (cmd.flatten_help and cmd.hasSubcommands()) {
         var fb = Buf{ .allocator = allocator };
         renderFlattened(&fb, cmd);
@@ -51,7 +54,7 @@ fn emitTag(b: *Buf, cmd: *const Command, tag: []const u8, long: bool) void {
     if (eq(u8, tag, "name") or eq(u8, tag, "bin")) {
         b.add(cmd.displayName());
     } else if (eq(u8, tag, "version")) {
-        if (cmd.version_str) |v| b.add(v);
+        if (cmd.version_str orelse cmd.long_version_str) |v| b.add(v);
     } else if (eq(u8, tag, "author")) {
         if (cmd.author_text) |a| b.add(a);
     } else if (eq(u8, tag, "author-with-newline")) {
@@ -169,7 +172,7 @@ fn renderLong(allocator: std.mem.Allocator, cmd: *const Command) []const u8 {
     b.addByte('\n');
     if (hasListedSubcommands(cmd)) {
         b.addByte('\n');
-        sectionHeader(&b, "Commands:");
+        sectionHeader(&b, commandsHeader(allocator, cmd));
         longSection(&b, longCommands(allocator, cmd), cmd.term_width);
     }
     if (hasPositionals(cmd)) {
@@ -263,12 +266,18 @@ fn renderFlattened(b: *Buf, cmd: *const Command) void {
         b.add("\n\n");
     }
     b.role(.usage, "Usage:");
-    b.addByte(' ');
-    b.add(usage.appendBody(b.allocator, cmd, false));
-    b.addByte('\n');
-    for (cmd.subcommands.items) |*sc| usageLine(b, sc);
+    // when a subcommand is required, the parent's own usage line is omitted and
+    // the first subcommand line takes the `Usage: ` prefix (clap's flatten layout)
+    var first = true;
+    if (!cmd.subcommand_required or cmd.args_conflicts_with_subcommands) {
+        b.addByte(' ');
+        b.add(usage.appendBody(b.allocator, cmd, false));
+        b.addByte('\n');
+        first = false;
+    }
     const help_sub = makeHelpSubcommand(b.allocator, cmd);
-    if (!cmd.disable_help_subcommand) usageLine(b, &help_sub);
+    for (cmd.subcommands.items) |*sc| usageEntry(b, &first, sc);
+    if (!cmd.disable_help_subcommand) usageEntry(b, &first, &help_sub);
 
     if (hasPositionals(cmd)) writeArguments(b, cmd);
     writeOptions(b, cmd);
@@ -277,10 +286,13 @@ fn renderFlattened(b: *Buf, cmd: *const Command) void {
     if (!cmd.disable_help_subcommand) flattenedBlock(b, &help_sub);
 }
 
-fn usageLine(b: *Buf, cmd: *const Command) void {
-    b.spaces(7); // align under "Usage: "
+/// One usage line in the flatten layout: the first entry follows `Usage: `
+/// directly, later ones are indented to align under it.
+fn usageEntry(b: *Buf, first: *bool, cmd: *const Command) void {
+    if (first.*) b.addByte(' ') else b.spaces(7);
     b.add(usage.appendBody(b.allocator, cmd, true));
     b.addByte('\n');
+    first.* = false;
 }
 
 /// One subcommand's flattened block under flatten_help: a `bin:` header, the
@@ -405,8 +417,14 @@ fn sortedSubcommandEntries(allocator: std.mem.Allocator, cmd: *const Command) []
 fn writeCommands(b: *Buf, cmd: *const Command) void {
     const entries = sortedSubcommandEntries(b.allocator, cmd);
     b.addByte('\n');
-    sectionHeader(b, "Commands:");
+    sectionHeader(b, commandsHeader(b.allocator, cmd));
     layout.table(b, 2, entries, cmd.term_width);
+}
+
+/// The subcommands section heading with its trailing colon (clap's
+/// `subcommand_help_heading`, default `Commands`).
+fn commandsHeader(allocator: std.mem.Allocator, cmd: *const Command) []const u8 {
+    return std.fmt.allocPrint(allocator, "{s}:", .{cmd.subcommand_help_heading orelse "Commands"}) catch oom();
 }
 
 // ----- Arguments (positionals) -----
@@ -475,7 +493,7 @@ fn writeHeadedSections(b: *Buf, cmd: *const Command) void {
 /// `write_all_args`).
 fn writeAllArgs(b: *Buf, cmd: *const Command, long: bool) void {
     var sections: std.ArrayListUnmanaged([]const u8) = .empty;
-    if (hasListedSubcommands(cmd)) sections.append(b.allocator, section(b.allocator, "Commands", tableStr(b.allocator, sortedSubcommandEntries(b.allocator, cmd), cmd.term_width))) catch oom();
+    if (hasListedSubcommands(cmd)) sections.append(b.allocator, section(b.allocator, cmd.subcommand_help_heading orelse "Commands", tableStr(b.allocator, sortedSubcommandEntries(b.allocator, cmd), cmd.term_width))) catch oom();
     if (hasPositionals(cmd)) sections.append(b.allocator, section(b.allocator, "Arguments", positionalRows(b.allocator, cmd, long))) catch oom();
     const opts = optionRows(b.allocator, cmd, long);
     if (opts.len != 0) sections.append(b.allocator, section(b.allocator, "Options", opts)) catch oom();
@@ -548,7 +566,8 @@ fn containsStr(haystack: []const []const u8, needle: []const u8) bool {
 
 fn collectOptions(allocator: std.mem.Allocator, cmd: *const Command, entries: *std.ArrayListUnmanaged(Entry)) void {
     for (cmd.arg_list.items) |*a| {
-        if (a.isPositional() or a.is_hidden or a.help_heading != null) continue;
+        // a propagated global belongs to the parent's section, not the flattened sub-block
+        if (a.isPositional() or a.is_hidden or a.help_heading != null or a.is_global) continue;
         entries.append(allocator, .{
             .term = optionTerm(allocator, a),
             .help = argHelp(allocator, a),
@@ -633,7 +652,26 @@ fn appendValueNotation(b: *Buf, a: *const Arg) void {
         b.add(" <");
         b.add(name);
         b.add(">");
+        if (a.showsEllipsis()) b.add("..."); // variadic / repeatable value
     }
+}
+
+/// Rust-`{:?}`-style quoting for a default value (clap's `Escape`): wrap in double
+/// quotes when empty or containing whitespace.
+fn quoteDefault(allocator: std.mem.Allocator, v: []const u8) []const u8 {
+    var needs = v.len == 0;
+    for (v) |c| {
+        if (std.ascii.isWhitespace(c)) needs = true;
+    }
+    if (!needs) return v;
+    var b = Buf{ .allocator = allocator };
+    b.addByte('"');
+    for (v) |c| {
+        if (c == '"' or c == '\\') b.addByte('\\');
+        b.addByte(c);
+    }
+    b.addByte('"');
+    return b.items();
 }
 
 fn argHelp(allocator: std.mem.Allocator, a: *const Arg) []const u8 {
@@ -642,7 +680,7 @@ fn argHelp(allocator: std.mem.Allocator, a: *const Arg) []const u8 {
     if (a.default_value) |d| {
         sep(&b);
         b.add("[default: ");
-        b.add(d);
+        b.add(quoteDefault(allocator, d));
         b.add("]");
     }
     appendVisibleAliases(&b, a);

@@ -11,13 +11,13 @@ const Parts = std.ArrayListUnmanaged([]const u8);
 /// The help usage line, e.g. "Usage: git diff [OPTIONS] [COMMIT] [COMMIT] [-- <PATH>]".
 /// Port of https://github.com/clap-rs/clap/blob/master/clap_builder/src/output/usage.rs
 pub fn render(allocator: std.mem.Allocator, cmd: *const Command) []const u8 {
-    return withHeading(allocator, body(allocator, cmd, &.{}, true));
+    return withHeading(allocator, body(allocator, cmd, &.{}, true, false));
 }
 
 /// Contextual ("smart") usage for an error: `used` is the set of present + missing
 /// ids; when non-empty, clap drops the `[OPTIONS]` tag and unrolls the required graph.
 pub fn errorUsage(allocator: std.mem.Allocator, cmd: *const Command, used: []const []const u8) []const u8 {
-    return withHeading(allocator, body(allocator, cmd, used, true));
+    return withHeading(allocator, body(allocator, cmd, used, true, true));
 }
 
 /// Prefix a usage body with the styled `Usage:` heading.
@@ -32,25 +32,34 @@ fn withHeading(allocator: std.mem.Allocator, usage_body: []const u8) []const u8 
 /// The usage body (binary name + args), without the "Usage: " prefix. Used by the
 /// flattened help layout, which lists each subcommand on its own line.
 pub fn appendBody(allocator: std.mem.Allocator, cmd: *const Command, include_subcommand: bool) []const u8 {
-    return body(allocator, cmd, &.{}, include_subcommand);
+    return body(allocator, cmd, &.{}, include_subcommand, false);
 }
 
-fn body(allocator: std.mem.Allocator, cmd: *const Command, used: []const []const u8, include_subcommand: bool) []const u8 {
+fn body(allocator: std.mem.Allocator, cmd: *const Command, used: []const []const u8, include_subcommand: bool, error_ctx: bool) []const u8 {
+    // a multicall command has no bin name of its own: usage is just `<COMMAND>`
+    if (cmd.is_multicall) {
+        return std.fmt.allocPrint(allocator, "<{s}>", .{cmd.subcommand_value_name orelse "COMMAND"}) catch @panic("clap: OOM");
+    }
     var parts: Parts = .empty;
-    if (used.len == 0 and needsOptionsTag(cmd)) push(allocator, &parts, "[OPTIONS]");
+    if (used.len == 0 and needsOptionsTagCtx(cmd, error_ctx)) push(allocator, &parts, "[OPTIONS]");
     collectArgParts(allocator, cmd, used, &parts);
     if (include_subcommand and cmd.hasVisibleSubcommands()) {
         // Help usage lists `[COMMAND]`/`<COMMAND>`; smart (error) usage only
         // shows the subcommand slot when one is required (clap's write_smart_usage).
+        const cn = cmd.subcommand_value_name orelse "COMMAND";
         if (used.len == 0) {
-            push(allocator, &parts, if (cmd.subcommand_required) "<COMMAND>" else "[COMMAND]");
+            const slot = if (cmd.subcommand_required)
+                std.fmt.allocPrint(allocator, "<{s}>", .{cn}) catch @panic("clap: OOM")
+            else
+                std.fmt.allocPrint(allocator, "[{s}]", .{cn}) catch @panic("clap: OOM");
+            push(allocator, &parts, slot);
         } else if (cmd.subcommand_required) {
-            push(allocator, &parts, "<COMMAND>");
+            push(allocator, &parts, std.fmt.allocPrint(allocator, "<{s}>", .{cn}) catch @panic("clap: OOM"));
         }
     }
 
     var b = Buf{ .allocator = allocator };
-    b.role(.literal, cmd.displayName());
+    b.role(.literal, cmd.usageName(allocator));
     for (parts.items) |p| {
         b.addByte(' ');
         b.add(p);
@@ -126,8 +135,15 @@ fn appendPositionals(allocator: std.mem.Allocator, cmd: *const Command, members:
 /// Whether `[OPTIONS]` is needed: some non-positional arg exists that isn't
 /// help/version (those aren't in arg_list) and isn't in a required group.
 pub fn needsOptionsTag(cmd: *const Command) bool {
+    return needsOptionsTagCtx(cmd, false);
+}
+
+/// `error_ctx` excludes global args: a global-only command shows `[OPTIONS]` in
+/// its help usage but not in a (smart) error usage — matching clap.
+fn needsOptionsTagCtx(cmd: *const Command, error_ctx: bool) bool {
     for (cmd.arg_list.items) |*a| {
         if (a.isPositional() or a.is_hidden) continue;
+        if (error_ctx and a.is_global) continue;
         // help/version-action flags don't count toward `[OPTIONS]`
         switch (a.action_val) {
             .help, .help_short, .help_long, .version => continue,

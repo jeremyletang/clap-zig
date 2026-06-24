@@ -5,6 +5,10 @@ const lex = @import("../lex.zig");
 const matcher = @import("matcher.zig");
 const validator = @import("validator.zig");
 const errors = @import("../error.zig");
+const env = @import("../env.zig");
+const suggest = @import("../suggest.zig");
+const range = @import("../builder/range.zig");
+const layout = @import("../output/layout.zig");
 
 const Command = command.Command;
 const Arg = arg.Arg;
@@ -29,13 +33,19 @@ const ParseState = union(enum) {
     opt: []const u8,
 };
 
+/// A flag-subcommand dispatch: invoke `name`, re-injecting any leftover short
+/// cluster as `-<inject>` ahead of the remaining argv (clap's `-Sfp` chains).
+const FlagSub = struct { name: []const u8, inject: ?[]const u8 };
+
 /// Outcome of handling a single long/short token.
 const FlagResult = union(enum) {
     values_done,
     opt: []const u8,
     /// help requested; payload is whether long (`--help`) vs short (`-h`)
     help: bool,
-    version,
+    /// version requested; payload is whether long (`--version`) vs short (`-V`)
+    version: bool,
+    flag_sub: FlagSub,
     err: Error,
 };
 
@@ -48,6 +58,11 @@ const PosResult = union(enum) {
 /// Parse `argv` (without the binary name) against `cmd`. Allocations come from
 /// `allocator` (an arena in the blessed path) and panic on failure.
 pub fn parse(allocator: std.mem.Allocator, cmd: *const Command, argv: []const []const u8) Outcome {
+    return parseEnv(allocator, cmd, argv, null);
+}
+
+/// Like `parse`, but `env_source` supplies values for `Arg.env` fallbacks.
+pub fn parseEnv(allocator: std.mem.Allocator, cmd: *const Command, argv: []const []const u8, env_source: ?env.EnvSource) Outcome {
     const m = ArgMatches.create(allocator) catch @panic("clap: OOM matching");
     var p = Parser{
         .allocator = allocator,
@@ -56,6 +71,7 @@ pub fn parse(allocator: std.mem.Allocator, cmd: *const Command, argv: []const []
         .cursor = lex.Cursor.init(argv),
         .positional_count = cmd.countPositionals(),
         .contains_last = hasLast(cmd),
+        .env_source = env_source,
     };
     const outcome = p.loop();
     if (outcome == .matches) propagateGlobals(allocator, cmd, outcome.matches);
@@ -91,7 +107,12 @@ fn propagateGlobals(allocator: std.mem.Allocator, cmd: *const Command, root: *Ar
 /// Parse and then validate (clap's `try_get_matches_from`). Returns matches,
 /// an error, or a help/version display request.
 pub fn getMatches(allocator: std.mem.Allocator, cmd: *const Command, argv: []const []const u8) Outcome {
-    switch (parse(allocator, cmd, argv)) {
+    return getMatchesEnv(allocator, cmd, argv, null);
+}
+
+/// Like `getMatches`, but `env_source` supplies values for `Arg.env` fallbacks.
+pub fn getMatchesEnv(allocator: std.mem.Allocator, cmd: *const Command, argv: []const []const u8, env_source: ?env.EnvSource) Outcome {
+    switch (parseEnv(allocator, cmd, argv, env_source)) {
         .err => |e| return .{ .err = e },
         .matches => |m| {
             if (validator.validate(allocator, cmd, m)) |e| return .{ .err = e };
@@ -123,6 +144,23 @@ const Parser = struct {
     cur_idx: usize = 0,
     /// values collected so far for the pending option (`state == .opt`).
     pending_count: usize = 0,
+    /// leftover short cluster to re-inject when dispatching a flag subcommand.
+    flag_sub_inject: ?[]const u8 = null,
+    /// id whose occurrence group is currently open for appending values; a new
+    /// group begins on each option occurrence or a non-contiguous positional run
+    open_group: ?[]const u8 = null,
+    /// caller-supplied env lookup for `Arg.env` fallbacks (null = no env).
+    env_source: ?env.EnvSource = null,
+
+    /// Under `ignore_errors`, recoverable errors are swallowed so parsing
+    /// continues with best-effort matches; help/version display still propagates.
+    fn ignorable(self: *Parser, e: Error) bool {
+        if (!self.cmd.ignore_errors) return false;
+        return switch (e.kind) {
+            .display_help, .display_version, .display_help_on_missing_argument_or_subcommand => false,
+            else => true,
+        };
+    }
 
     fn loop(self: *Parser) Outcome {
         var subcmd_name: ?[]const u8 = null;
@@ -132,12 +170,32 @@ const Parser = struct {
                 // While collecting an option's values, a plain value continues it;
                 // a flag/escape ends it (verify the count) before being handled.
                 if (self.state == .opt) {
+                    // a value_terminator ends collection and is itself consumed
+                    // (takes precedence over allow_hyphen_values)
+                    const pending = self.cmd.findArgById(self.state.opt).?;
+                    if (pending.value_terminator) |term| {
+                        if (std.mem.eql(u8, token, term)) {
+                            if (self.finalizePending()) |e| if (!self.ignorable(e)) return .{ .err = e };
+                            continue;
+                        }
+                    }
                     switch (parsed) {
                         .value, .stdio => {
                             self.consumeOptValue(token);
                             continue;
                         },
-                        else => if (self.finalizePending()) |e| return .{ .err = e },
+                        // a flag-looking token ends the option — unless the option
+                        // accepts hyphen values, in which case it's another value
+                        else => {
+                            // the `--` escape always ends collection (never a value),
+                            // even for allow_hyphen_values options
+                            const opt = self.cmd.findArgById(self.state.opt).?;
+                            if (parsed != .escape and opt.acceptsHyphenValue(token)) {
+                                self.consumeOptValue(token);
+                                continue;
+                            }
+                            if (self.finalizePending()) |e| if (!self.ignorable(e)) return .{ .err = e };
+                        },
                     }
                 }
                 if (self.state == .values_done) {
@@ -148,29 +206,91 @@ const Parser = struct {
                             subcmd_name = name;
                             break;
                         },
-                        .err => |e| return .{ .err = e },
+                        .err => |e| {
+                            if (self.ignorable(e)) continue;
+                            return .{ .err = e };
+                        },
                     }
                 }
-                if (self.handleFlagsAndOptions(token, parsed)) |outcome| {
-                    switch (outcome) {
-                        .consumed => continue,
-                        .ret => |o| return o,
-                        .fall_through => {},
+                // a leading-`-` token goes to the next positional when that
+                // positional accepts hyphen values (clap's allow_hyphen_values /
+                // allow_negative_numbers), bypassing flag parsing
+                if (!self.hyphenPositional(token, parsed)) {
+                    if (self.handleFlagsAndOptions(token, parsed)) |outcome| {
+                        switch (outcome) {
+                            .consumed => continue,
+                            .ret => |o| {
+                                if (o == .err and self.ignorable(o.err)) continue;
+                                return o;
+                            },
+                            .fall_through => {},
+                            .flag_sub => |fs| {
+                                subcmd_name = fs.name;
+                                self.flag_sub_inject = fs.inject;
+                                break;
+                            },
+                        }
                     }
                 }
             }
             switch (self.handlePositional(token)) {
                 .cont => continue,
                 .done => return .{ .matches = self.matches },
-                .err => |e| return .{ .err = e },
+                .err => |e| {
+                    if (self.ignorable(e)) continue;
+                    return .{ .err = e };
+                },
             }
         }
-        if (self.finalizePending()) |e| return .{ .err = e };
+        if (self.finalizePending()) |e| if (!self.ignorable(e)) return .{ .err = e };
         if (subcmd_name) |name| {
-            if (self.parseSubcommand(name)) |e| return .{ .err = e };
+            if (self.parseSubcommand(name)) |e| if (!self.ignorable(e)) return .{ .err = e };
         }
+        self.applyEnv();
         self.applyDefaults();
+        self.recordGroups();
         return .{ .matches = self.matches };
+    }
+
+    /// Record each group's present members under the group id so a group can be
+    /// queried like an arg (clap's `get_one`/`get_many`/`contains_id` on a group).
+    fn recordGroups(self: *Parser) void {
+        for (self.cmd.groups.items) |*g| self.recordGroup(g.id);
+        for (self.cmd.arg_list.items) |*a| {
+            if (a.group_id) |gid| self.recordGroup(gid);
+        }
+    }
+
+    fn recordGroup(self: *Parser, gid: []const u8) void {
+        var members: std.ArrayListUnmanaged([]const u8) = .empty;
+        for (self.cmd.arg_list.items) |*a| {
+            if (self.cmd.argInGroupId(a, gid) and self.matches.isPresent(a.id)) {
+                members.append(self.allocator, a.id) catch @panic("clap: OOM");
+            }
+        }
+        if (members.items.len > 0) self.matches.setGroupMembers(gid, members.items);
+    }
+
+    /// Env fallback (clap's `Arg.env`): for each absent env-bound arg, take the
+    /// value from the env source, splitting on the delimiter like a CLI value.
+    /// Runs before defaults, so precedence is CLI > env > default.
+    fn applyEnv(self: *Parser) void {
+        const src = self.env_source orelse return;
+        for (self.cmd.arg_list.items) |*a| {
+            const name = a.env_var orelse continue;
+            if (self.matches.contains(a.id)) continue;
+            const raw = src.get(name) orelse continue;
+            var vals: std.ArrayListUnmanaged([]const u8) = .empty;
+            if (a.value_delimiter) |d| {
+                var it = std.mem.splitScalar(u8, raw, d);
+                while (it.next()) |piece| vals.append(self.allocator, piece) catch @panic("clap: OOM");
+            } else {
+                vals.append(self.allocator, raw) catch @panic("clap: OOM");
+            }
+            const first = self.cur_idx + 1;
+            self.cur_idx += vals.items.len;
+            self.matches.setEnv(a.id, vals.items, first);
+        }
     }
 
     /// Append a value to the pending option, ending collection once `max` is reached.
@@ -190,12 +310,46 @@ const Parser = struct {
         return self.numValsError(a, r, self.pending_count);
     }
 
+    /// Whether a leading-`-` `token` should fill the next positional instead of
+    /// being parsed as a flag (the positional has allow_hyphen_values / accepts
+    /// this negative number). Excludes the `--` escape and lone `-`.
+    fn hyphenPositional(self: *Parser, token: []const u8, parsed: lex.ParsedArg) bool {
+        if (self.state != .values_done) return false;
+        if (token.len < 2 or token[0] != '-') return false;
+        if (std.mem.eql(u8, token, "--")) return false;
+        if (self.isRecognizedFlag(parsed)) return false; // defined flags still win
+        const p = self.cmd.getPositional(self.pos_counter) orelse return false;
+        return p.acceptsHyphenValue(token);
+    }
+
+    /// Whether `parsed` names a defined option/flag (incl. the auto help/version
+    /// flags and flag subcommands) — such tokens are never hyphen-value fodder.
+    fn isRecognizedFlag(self: *Parser, parsed: lex.ParsedArg) bool {
+        switch (parsed) {
+            .long => |l| {
+                if (self.cmd.findArgByLong(l.name) != null) return true;
+                if (!self.cmd.disable_help_flag and std.mem.eql(u8, l.name, "help")) return true;
+                if (self.cmd.hasVersionFlag() and std.mem.eql(u8, l.name, "version")) return true;
+                return self.cmd.findFlagSubcommandLong(l.name) != null;
+            },
+            .short => |s| {
+                const c = s[0];
+                if (self.cmd.findArgByShort(c) != null) return true;
+                if (!self.cmd.disable_help_flag and c == 'h') return true;
+                if (self.cmd.hasVersionFlag() and c == 'V') return true;
+                return self.cmd.findFlagSubcommandShort(c) != null;
+            },
+            else => return false,
+        }
+    }
+
     // ----- token dispatch -----
 
     const FlagDispatch = union(enum) {
         consumed,
         ret: Outcome,
         fall_through,
+        flag_sub: FlagSub,
     };
 
     fn handleFlagsAndOptions(self: *Parser, token: []const u8, parsed: lex.ParsedArg) ?FlagDispatch {
@@ -223,10 +377,13 @@ const Parser = struct {
                 self.pending_count = 0;
                 if (self.cmd.findArgById(id)) |a| self.removeOverrides(a);
                 self.matches.startOccurrence(id, .command_line);
+                self.matches.beginGroup(id);
+                self.open_group = id;
                 return .consumed;
             },
             .help => |long| return .{ .ret = helpOutcome(self.cmd, long) },
-            .version => return .{ .ret = versionOutcome(self.cmd) },
+            .version => |long| return .{ .ret = versionOutcome(self.cmd, long) },
+            .flag_sub => |fs| return .{ .flag_sub = fs },
             .err => |e| return .{ .ret = .{ .err = e } },
         }
     }
@@ -248,7 +405,37 @@ const Parser = struct {
             return self.helpSubcommandTarget();
         }
         if (self.cmd.findSubcommand(token)) |sc| return .{ .matched = sc.name };
+        if (!self.cmd.hasSubcommands() or std.mem.startsWith(u8, token, "-")) return .none;
+        if (self.cmd.infer_subcommands) switch (self.cmd.inferSubcommand(token)) {
+            .unique => |sc| return .{ .matched = sc.name },
+            .ambiguous, .none => {},
+        };
+        // not a subcommand: a free positional slot (or an external-subcommand
+        // catch-all) still consumes the token as a value
+        if (self.cmd.getPositional(self.pos_counter) != null) return .none;
+        if (self.cmd.allow_external_subcommands) return .none;
+        // a bare token that can't be placed is a failed subcommand (clap's
+        // match_arg_error): suggest similar names, else error only when the
+        // command takes no positionals at all (or infers subcommands)
+        var e = self.mkErr(.invalid_subcommand, token, null);
+        if (self.subcommandSuggestions(token)) |s| {
+            e.suggestions = s;
+            return .{ .err = e };
+        }
+        if (self.cmd.countPositionals() == 0 or self.cmd.infer_subcommands) {
+            return .{ .err = e };
+        }
         return .none;
+    }
+
+    fn subcommandSuggestions(self: *Parser, token: []const u8) ?[]const []const u8 {
+        var names: std.ArrayListUnmanaged([]const u8) = .empty;
+        for (self.cmd.subcommands.items) |*sc| {
+            names.append(self.allocator, sc.name) catch @panic("clap: OOM");
+            if (sc.aliases_list) |al| for (al) |x| names.append(self.allocator, x) catch @panic("clap: OOM");
+        }
+        const cands = suggest.didYouMean(self.allocator, token, names.items);
+        return if (cands.len == 0) null else cands;
     }
 
     fn helpSubcommandTarget(self: *Parser) SubCheck {
@@ -269,13 +456,24 @@ const Parser = struct {
         }
         const sc = self.cmd.findSubcommand(name).?;
         const child = ArgMatches.create(self.allocator) catch @panic("clap: OOM matching");
+        // flag-subcommand dispatch re-injects the leftover short cluster as `-rest`
+        var child_cursor = lex.Cursor{ .args = self.cursor.args, .index = self.cursor.index };
+        if (self.flag_sub_inject) |rest| {
+            if (rest.len > 0) {
+                var list: std.ArrayListUnmanaged([]const u8) = .empty;
+                list.append(self.allocator, std.fmt.allocPrint(self.allocator, "-{s}", .{rest}) catch @panic("clap: OOM")) catch @panic("clap: OOM");
+                list.appendSlice(self.allocator, self.cursor.remaining()) catch @panic("clap: OOM");
+                child_cursor = lex.Cursor.init(list.items);
+            }
+        }
         var child_parser = Parser{
             .allocator = self.allocator,
             .cmd = sc,
             .matches = child,
-            .cursor = .{ .args = self.cursor.args, .index = self.cursor.index },
+            .cursor = child_cursor,
             .positional_count = sc.countPositionals(),
             .contains_last = hasLast(sc),
+            .env_source = self.env_source,
         };
         switch (child_parser.loop()) {
             .matches => |cm| self.matches.setSubcommand(sc.name, cm),
@@ -288,11 +486,11 @@ const Parser = struct {
 
     /// A help/version action on a matched arg yields the corresponding outcome
     /// (clap's `ArgAction::Help`/`HelpShort`/`HelpLong`/`Version`).
-    fn actionResult(action_val: @import("../builder/action.zig").ArgAction) ?FlagResult {
+    fn actionResult(action_val: @import("../builder/action.zig").ArgAction, long: bool) ?FlagResult {
         return switch (action_val) {
             .help, .help_long => .{ .help = true },
             .help_short => .{ .help = false },
-            .version => .version,
+            .version => .{ .version = long },
             else => null,
         };
     }
@@ -306,12 +504,24 @@ const Parser = struct {
         if (self.cmd.hasVersionFlag() and std.mem.eql(u8, l.name, "version") and
             self.cmd.findArgByLong("version") == null)
         {
-            return .version;
+            return .{ .version = true };
         }
-        const a = self.cmd.findArgByLong(l.name) orelse
-            return .{ .err = self.mkErr(.unknown_argument, self.dashed(l.name), null) };
+        const a = self.cmd.findArgByLong(l.name) orelse blk: {
+            if (self.cmd.findFlagSubcommandLong(l.name)) |sc| return .{ .flag_sub = .{ .name = sc.name, .inject = null } };
+            if (self.cmd.infer_long_args) switch (self.cmd.inferArgByLong(l.name)) {
+                .unique => |ia| break :blk ia,
+                .ambiguous => return .{ .err = self.mkErr(.unknown_argument, self.dashed(l.name), null) },
+                .none => {},
+            };
+            if (self.cmd.infer_subcommands) switch (self.cmd.inferFlagSubcommandLong(l.name)) {
+                .unique => |sc| return .{ .flag_sub = .{ .name = sc.name, .inject = null } },
+                .ambiguous => return .{ .err = self.mkErr(.unknown_argument, self.dashed(l.name), null) },
+                .none => {},
+            };
+            return .{ .err = self.unknownLongError(l.name) };
+        };
         self.valid_arg_found = true;
-        if (actionResult(a.action_val)) |r| return r;
+        if (actionResult(a.action_val, true)) |r| return r;
         if (self.reuseError(a)) |e| return .{ .err = e };
         if (!a.takesValue()) {
             if (l.value != null) {
@@ -333,12 +543,14 @@ const Parser = struct {
                 return .{ .help = false };
             }
             if (self.cmd.hasVersionFlag() and c == 'V' and self.cmd.findArgByShort('V') == null) {
-                return .version;
+                return .{ .version = false };
             }
-            const a = self.cmd.findArgByShort(c) orelse
+            const a = self.cmd.findArgByShort(c) orelse {
+                if (self.cmd.findFlagSubcommandShort(c)) |sc| return .{ .flag_sub = .{ .name = sc.name, .inject = rest } };
                 return .{ .err = self.mkErr(.unknown_argument, self.shortDisplay(c), null) };
+            };
             self.valid_arg_found = true;
-            if (actionResult(a.action_val)) |r| return r;
+            if (actionResult(a.action_val, false)) |r| return r;
             if (self.reuseError(a)) |e| return .{ .err = e };
             if (!a.takesValue()) {
                 self.recordArg(a, &.{}, .command_line);
@@ -378,8 +590,29 @@ const Parser = struct {
             if (a.last_flag and !self.trailing) {
                 return .{ .err = self.mkErr(.unknown_argument, token, null) };
             }
+            // a value_terminator ends this positional and is consumed; later
+            // tokens fall to the next positional slot
+            if (a.value_terminator) |term| {
+                if (std.mem.eql(u8, token, term)) {
+                    self.pos_counter += 1;
+                    return .cont;
+                }
+            }
+            // a bounded-range positional (e.g. `1..=3`) rejects the value past its
+            // max; a fixed-count one (`3`) over-fills and is caught post-parse so
+            // the error reports the total count (clap's two distinct behaviors)
+            const r = a.effectiveNumArgs();
+            if (a.isMultiple() and r.max != range.ValueRange.unbounded and r.min != r.max) {
+                const have = if (self.matches.getRaw(a.id)) |v| v.len else 0;
+                if (have >= r.max) {
+                    return .{ .err = .{ .kind = .too_many_values, .cmd = self.cmd, .arg = layout.positionalNotationStr(self.allocator, a), .value = token } };
+                }
+            }
             self.recordArg(a, &.{token}, .command_line);
             self.valid_arg_found = true;
+            // a trailing-var-arg positional swallows everything after its first
+            // value (flags, `--`, hyphen values) as literal values
+            if (a.trailing_var_arg) self.trailing = true;
             if (!a.isMultiple()) self.pos_counter += 1;
             return .cont;
         }
@@ -403,6 +636,7 @@ const Parser = struct {
     fn recordArg(self: *Parser, a: *const Arg, vals: []const []const u8, source: ValueSource) void {
         if (source == .command_line) self.removeOverrides(a);
         self.matches.startOccurrence(a.id, source);
+        if (source == .command_line) self.openGroup(a);
         if (vals.len == 0) {
             if (a.default_missing_value) |dm| {
                 self.pushVal(a.id, dm);
@@ -411,9 +645,12 @@ const Parser = struct {
             } else if (a.action_val == .set_false) {
                 self.pushVal(a.id, "false");
             } else if (a.action_val == .count) {
-                // Count keeps only the latest index (value unused; getCount reads occurrences)
+                // Count stores the running total as its value (clap: the count IS
+                // the value, so getOne/default_value_if read it); occurrences track
+                // it too. Keep only the latest value/index.
                 self.matches.clearValues(a.id);
-                self.pushVal(a.id, "");
+                const n = self.matches.getCount(a.id);
+                self.pushVal(a.id, std.fmt.allocPrint(self.allocator, "{d}", .{n}) catch @panic("clap: OOM"));
             }
             return;
         }
@@ -451,6 +688,17 @@ const Parser = struct {
     }
 
     /// Advance the parse-index and record one value at the new slot.
+    /// Begin a new occurrence group: always for options/flags (each appearance is
+    /// an occurrence), but for a positional only when its run isn't contiguous with
+    /// the previous value (clap groups contiguous positional values together).
+    fn openGroup(self: *Parser, a: *const Arg) void {
+        if (a.isPositional()) {
+            if (self.open_group != null and std.mem.eql(u8, self.open_group.?, a.id)) return;
+        }
+        self.matches.beginGroup(a.id);
+        self.open_group = a.id;
+    }
+
     fn pushVal(self: *Parser, id: []const u8, val: []const u8) void {
         self.cur_idx += 1;
         self.matches.pushValue(id, val, self.cur_idx);
@@ -476,6 +724,12 @@ const Parser = struct {
                     return; // first match wins; skip the regular default
                 }
             }
+        }
+        if (a.default_values) |dvs| {
+            const first = self.cur_idx + 1;
+            self.cur_idx += dvs.len;
+            self.matches.setDefaults(a.id, dvs, first);
+            return;
         }
         if (a.default_value) |dv| {
             if (a.value_delimiter) |d| {
@@ -529,6 +783,37 @@ const Parser = struct {
 
     fn mkErr(self: *Parser, kind: errors.ErrorKind, name: ?[]const u8, value: ?[]const u8) Error {
         return .{ .kind = kind, .cmd = self.cmd, .arg = name, .value = value };
+    }
+
+    /// `unknown_argument` for an unmatched `--long`, carrying a "did you mean"
+    /// suggestion of the most similar defined long flag (clap's did_you_mean_flag).
+    /// The suggested arg is recorded as present so the usage line names it
+    /// instead of `[OPTIONS]` (clap's `start_custom_arg`).
+    fn unknownLongError(self: *Parser, name: []const u8) Error {
+        var e = self.mkErr(.unknown_argument, self.dashed(name), null);
+        const cand = self.bestLong(name) orelse return e;
+        e.suggestions = self.allocator.dupe([]const u8, &.{self.dashed(cand)}) catch @panic("clap: OOM");
+        // under ignore_errors the error is dropped, so don't record the suggested
+        // arg (clap skips start_custom_arg) — it should keep its default source
+        if (self.cmd.ignore_errors) return e;
+        if (self.cmd.findArgByLong(cand)) |a| {
+            self.matches.startOccurrence(a.id, .command_line);
+            e.used_ids = self.matches.presentIds(self.allocator);
+        }
+        return e;
+    }
+
+    fn bestLong(self: *Parser, name: []const u8) ?[]const u8 {
+        var longs: std.ArrayListUnmanaged([]const u8) = .empty;
+        for (self.cmd.arg_list.items) |*a| {
+            if (a.long_name) |l| longs.append(self.allocator, l) catch @panic("clap: OOM");
+            if (a.aliases_list) |al| for (al) |x| longs.append(self.allocator, x) catch @panic("clap: OOM");
+        }
+        if (!self.cmd.disable_help_flag) longs.append(self.allocator, "help") catch @panic("clap: OOM");
+        if (self.cmd.hasVersionFlag()) longs.append(self.allocator, "version") catch @panic("clap: OOM");
+        const cands = suggest.didYouMean(self.allocator, name, longs.items);
+        if (cands.len == 0) return null;
+        return cands[cands.len - 1];
     }
 
     /// A non-multiple flag/option used a second time: error, unless
@@ -613,6 +898,6 @@ fn helpOutcome(cmd: *const Command, long: bool) Outcome {
     return .{ .err = .{ .kind = .display_help, .cmd = cmd, .help_long = long } };
 }
 
-fn versionOutcome(cmd: *const Command) Outcome {
-    return .{ .err = .{ .kind = .display_version, .cmd = cmd } };
+fn versionOutcome(cmd: *const Command, long: bool) Outcome {
+    return .{ .err = .{ .kind = .display_version, .cmd = cmd, .version_long = long } };
 }

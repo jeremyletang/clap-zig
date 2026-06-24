@@ -263,12 +263,18 @@ fn renderFlattened(b: *Buf, cmd: *const Command) void {
         b.add("\n\n");
     }
     b.role(.usage, "Usage:");
-    b.addByte(' ');
-    b.add(usage.appendBody(b.allocator, cmd, false));
-    b.addByte('\n');
-    for (cmd.subcommands.items) |*sc| usageLine(b, sc);
+    // when a subcommand is required, the parent's own usage line is omitted and
+    // the first subcommand line takes the `Usage: ` prefix (clap's flatten layout)
+    var first = true;
+    if (!cmd.subcommand_required or cmd.args_conflicts_with_subcommands) {
+        b.addByte(' ');
+        b.add(usage.appendBody(b.allocator, cmd, false));
+        b.addByte('\n');
+        first = false;
+    }
     const help_sub = makeHelpSubcommand(b.allocator, cmd);
-    if (!cmd.disable_help_subcommand) usageLine(b, &help_sub);
+    for (cmd.subcommands.items) |*sc| usageEntry(b, &first, sc);
+    if (!cmd.disable_help_subcommand) usageEntry(b, &first, &help_sub);
 
     if (hasPositionals(cmd)) writeArguments(b, cmd);
     writeOptions(b, cmd);
@@ -277,10 +283,13 @@ fn renderFlattened(b: *Buf, cmd: *const Command) void {
     if (!cmd.disable_help_subcommand) flattenedBlock(b, &help_sub);
 }
 
-fn usageLine(b: *Buf, cmd: *const Command) void {
-    b.spaces(7); // align under "Usage: "
+/// One usage line in the flatten layout: the first entry follows `Usage: `
+/// directly, later ones are indented to align under it.
+fn usageEntry(b: *Buf, first: *bool, cmd: *const Command) void {
+    if (first.*) b.addByte(' ') else b.spaces(7);
     b.add(usage.appendBody(b.allocator, cmd, true));
     b.addByte('\n');
+    first.* = false;
 }
 
 /// One subcommand's flattened block under flatten_help: a `bin:` header, the
@@ -554,7 +563,8 @@ fn containsStr(haystack: []const []const u8, needle: []const u8) bool {
 
 fn collectOptions(allocator: std.mem.Allocator, cmd: *const Command, entries: *std.ArrayListUnmanaged(Entry)) void {
     for (cmd.arg_list.items) |*a| {
-        if (a.isPositional() or a.is_hidden or a.help_heading != null) continue;
+        // a propagated global belongs to the parent's section, not the flattened sub-block
+        if (a.isPositional() or a.is_hidden or a.help_heading != null or a.is_global) continue;
         entries.append(allocator, .{
             .term = optionTerm(allocator, a),
             .help = argHelp(allocator, a),

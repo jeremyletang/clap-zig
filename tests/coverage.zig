@@ -178,6 +178,22 @@ pub const entries = [_]Entry{
     .{ .file = "occurrences.rs", .name = "grouped_interleaved_positional_occurrences", .status = .ported },
     .{ .file = "occurrences.rs", .name = "issue_2171", .status = .deferred, .note = "args_override_self short-cluster repeat (no get_occurrences)" },
 
+    // ----- help.rs: flatten_help -----
+    .{ .file = "help.rs", .name = "flatten_basic", .status = .ported },
+    .{ .file = "help.rs", .name = "flatten_without_subcommands", .status = .ported },
+    .{ .file = "help.rs", .name = "flatten_with_subcommand_required", .status = .ported },
+    .{ .file = "help.rs", .name = "flatten_with_global", .status = .ported },
+    .{ .file = "help.rs", .name = "flatten_with_external_subcommand", .status = .ported },
+    .{ .file = "help.rs", .name = "flatten_with_args_conflicts_with_subcommands", .status = .ported },
+    .{ .file = "help.rs", .name = "flatten_not_recursive", .status = .ported },
+    .{ .file = "help.rs", .name = "flatten_arg_required", .status = .deferred, .note = "parent required args in subcommand usage lines" },
+    .{ .file = "help.rs", .name = "flatten_recursive", .status = .deferred, .note = "recursive flatten" },
+    .{ .file = "help.rs", .name = "flatten_hidden_command", .status = .deferred, .note = "hidden subcommand in flatten" },
+    .{ .file = "help.rs", .name = "flatten_single_hidden_command", .status = .deferred, .note = "hidden subcommand in flatten" },
+    .{ .file = "help.rs", .name = "flatten_help_cmd", .status = .deferred, .note = "long layout under flatten" },
+    .{ .file = "help.rs", .name = "flatten_long_help", .status = .deferred, .note = "long layout under flatten" },
+    .{ .file = "help.rs", .name = "flatten_short_help", .status = .deferred, .note = "long layout under flatten" },
+
     // ----- help.rs: try-help hint logic -----
     .{ .file = "help.rs", .name = "try_help_default", .status = .ported },
     .{ .file = "help.rs", .name = "try_help_custom_flag", .status = .ported },

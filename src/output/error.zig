@@ -1,5 +1,6 @@
 const std = @import("std");
 const errors = @import("../error.zig");
+const command = @import("../builder/command.zig");
 const help = @import("help.zig");
 const usage = @import("usage.zig");
 const layout = @import("layout.zig");
@@ -46,8 +47,16 @@ pub fn render(allocator: std.mem.Allocator, e: errors.Error) []const u8 {
         b.add(usage.errorUsage(allocator, e.cmd, e.used_ids orelse &.{}));
         b.addByte('\n');
     }
-    b.add("\nFor more information, try '--help'.\n");
+    b.print("\nFor more information, try '{s}'.\n", .{helpHint(e.cmd)});
     return b.items();
+}
+
+/// The token clap suggests for more help: the `--help` flag when the command has
+/// one, otherwise the `help` subcommand (e.g. a multicall dispatcher root).
+fn helpHint(cmd: *const command.Command) []const u8 {
+    if (!cmd.is_multicall and !cmd.disable_help_flag) return "--help";
+    if (cmd.hasSubcommands() and !cmd.disable_help_subcommand) return "help";
+    return "--help";
 }
 
 /// Whether this error kind prints a `Usage:` block (clap omits it for invalid_value).

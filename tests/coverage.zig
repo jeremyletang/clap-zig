@@ -56,6 +56,15 @@ pub const entries = [_]Entry{
     .{ .file = "ignore_errors.rs", .name = "help_flag_subcommand", .status = .ported },
     .{ .file = "ignore_errors.rs", .name = "version_flag", .status = .ported },
 
+    // ----- multicall -----
+    .{ .file = "subcommands.rs", .name = "busybox_like_multicall", .status = .ported },
+    .{ .file = "subcommands.rs", .name = "hostname_like_multicall", .status = .ported },
+    .{ .file = "subcommands.rs", .name = "bad_multicall_command_error", .status = .ported },
+    .{ .file = "subcommands.rs", .name = "multicall_help_flag", .status = .ported },
+    .{ .file = "subcommands.rs", .name = "multicall_help_subcommand", .status = .ported },
+    .{ .file = "subcommands.rs", .name = "cant_have_args_with_multicall", .status = .deferred, .note = "debug_assert (build-time panic)" },
+    .{ .file = "subcommands.rs", .name = "multicall_render_help", .status = .deferred, .note = "find_subcommand_mut + render_help API" },
+
     // ----- subcommand value-name / help-heading settings -----
     .{ .file = "subcommands.rs", .name = "subcommand_placeholder_test", .status = .ported },
 

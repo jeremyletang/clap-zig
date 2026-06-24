@@ -36,6 +36,10 @@ pub fn appendBody(allocator: std.mem.Allocator, cmd: *const Command, include_sub
 }
 
 fn body(allocator: std.mem.Allocator, cmd: *const Command, used: []const []const u8, include_subcommand: bool) []const u8 {
+    // a multicall command has no bin name of its own: usage is just `<COMMAND>`
+    if (cmd.is_multicall) {
+        return std.fmt.allocPrint(allocator, "<{s}>", .{cmd.subcommand_value_name orelse "COMMAND"}) catch @panic("clap: OOM");
+    }
     var parts: Parts = .empty;
     if (used.len == 0 and needsOptionsTag(cmd)) push(allocator, &parts, "[OPTIONS]");
     collectArgParts(allocator, cmd, used, &parts);

@@ -72,6 +72,9 @@ pub const Command = struct {
     args_override_self: bool = false,
     /// swallow recoverable parse errors and return best-effort matches (clap's `ignore_errors`)
     ignore_errors: bool = false,
+    /// dispatch on the first argument as an applet name (clap's `multicall`):
+    /// subcommands are rooted at their own name and the root usage is just `<COMMAND>`
+    is_multicall: bool = false,
     /// resolve an unambiguous subcommand prefix to its full name (clap's `infer_subcommands`)
     infer_subcommands: bool = false,
     /// resolve an unambiguous `--long` prefix to its full flag (clap's `infer_long_args`)
@@ -389,6 +392,15 @@ pub const Command = struct {
         return c;
     }
 
+    /// Dispatch on the first argument as an applet name, BusyBox-style (clap's
+    /// `multicall`). Each subcommand becomes a top-level applet (its `bin_name` is
+    /// its own name) and the root's usage is just the subcommand placeholder.
+    pub fn multicall(self: Command, yes: bool) Command {
+        var c = self;
+        c.is_multicall = yes;
+        return c;
+    }
+
     /// Swallow recoverable parse errors and return best-effort matches; help and
     /// version requests still display (clap's `ignore_errors`).
     pub fn ignoreErrors(self: Command, yes: bool) Command {
@@ -456,8 +468,13 @@ pub const Command = struct {
                 if (sc.version_str == null) sc.version_str = self.version_str;
                 if (sc.long_version_str == null) sc.long_version_str = self.long_version_str;
             }
-            const child = std.fmt.allocPrint(self.allocator, "{s} {s}", .{ path, sc.name }) catch
-                @panic("clap: OOM building command");
+            // a multicall command's subcommands are top-level applets: their path
+            // starts at their own name, not "<root> <name>"
+            const child = if (self.is_multicall)
+                sc.name
+            else
+                std.fmt.allocPrint(self.allocator, "{s} {s}", .{ path, sc.name }) catch
+                    @panic("clap: OOM building command");
             sc.propagate(child, globals.items);
         }
     }

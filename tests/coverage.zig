@@ -178,6 +178,21 @@ pub const entries = [_]Entry{
     .{ .file = "occurrences.rs", .name = "grouped_interleaved_positional_occurrences", .status = .ported },
     .{ .file = "occurrences.rs", .name = "issue_2171", .status = .deferred, .note = "args_override_self short-cluster repeat (no get_occurrences)" },
 
+    // ----- help.rs: dotted positionals, last usage, default/hidden in help -----
+    .{ .file = "help.rs", .name = "positional_multiple_values_is_dotted", .status = .ported },
+    .{ .file = "help.rs", .name = "positional_multiple_occurrences_is_dotted", .status = .ported },
+    .{ .file = "help.rs", .name = "args_with_last_usage", .status = .ported },
+    .{ .file = "help.rs", .name = "empty_default_value", .status = .ported },
+    .{ .file = "help.rs", .name = "hide_args", .status = .ported },
+    .{ .file = "help.rs", .name = "too_few_value_names_is_dotted", .status = .deferred, .note = "`...` when num_args > value_names count" },
+    .{ .file = "help.rs", .name = "hide_default_val", .status = .deferred, .note = "hide_default_value" },
+    .{ .file = "help.rs", .name = "hide_possible_vals", .status = .deferred, .note = "hide_possible_values" },
+    .{ .file = "help.rs", .name = "possible_vals_with_help", .status = .deferred, .note = "PossibleValue.hide + per-value help block" },
+    .{ .file = "help.rs", .name = "help_enum_arg_with_no_description", .status = .deferred, .note = "long possible-values block + hide + default" },
+    .{ .file = "help.rs", .name = "display_name_default", .status = .deferred, .note = "get_display_name reflection" },
+    .{ .file = "help.rs", .name = "display_name_explicit", .status = .deferred, .note = "display_name setter + reflection" },
+    .{ .file = "help.rs", .name = "help_without_short", .status = .deferred, .note = "get_short reflection" },
+
     // ----- help.rs: custom help headings -----
     .{ .file = "help.rs", .name = "mixed_argument_types", .status = .ported },
     .{ .file = "help.rs", .name = "mixed_argument_types_no_short", .status = .ported },

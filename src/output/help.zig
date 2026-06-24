@@ -656,13 +656,31 @@ fn appendValueNotation(b: *Buf, a: *const Arg) void {
     }
 }
 
+/// Rust-`{:?}`-style quoting for a default value (clap's `Escape`): wrap in double
+/// quotes when empty or containing whitespace.
+fn quoteDefault(allocator: std.mem.Allocator, v: []const u8) []const u8 {
+    var needs = v.len == 0;
+    for (v) |c| {
+        if (std.ascii.isWhitespace(c)) needs = true;
+    }
+    if (!needs) return v;
+    var b = Buf{ .allocator = allocator };
+    b.addByte('"');
+    for (v) |c| {
+        if (c == '"' or c == '\\') b.addByte('\\');
+        b.addByte(c);
+    }
+    b.addByte('"');
+    return b.items();
+}
+
 fn argHelp(allocator: std.mem.Allocator, a: *const Arg) []const u8 {
     var b = Buf{ .allocator = allocator };
     if (a.helpFor(false)) |h| b.add(h);
     if (a.default_value) |d| {
         sep(&b);
         b.add("[default: ");
-        b.add(d);
+        b.add(quoteDefault(allocator, d));
         b.add("]");
     }
     appendVisibleAliases(&b, a);

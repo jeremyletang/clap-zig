@@ -81,6 +81,26 @@ pub const entries = [_]Entry{
     .{ .file = "utf8.rs", .name = "allow_invalid_utf8_external_subcommand_values_of_os", .status = .deferred, .note = "OsString values" },
     .{ .file = "utf8.rs", .name = "panic_invalid_utf8_external_subcommand_values_of", .status = .deferred, .note = "should_panic (String downcast)" },
 
+    // ----- opts.rs (empty values, =-prefixed values, require_equals, leading hyphen) -----
+    .{ .file = "opts.rs", .name = "issue_1105_empty_value_long_equals", .status = .ported },
+    .{ .file = "opts.rs", .name = "issue_1105_empty_value_long_explicit", .status = .ported },
+    .{ .file = "opts.rs", .name = "issue_1105_empty_value_long_fail", .status = .ported },
+    .{ .file = "opts.rs", .name = "issue_1105_empty_value_short_equals", .status = .ported },
+    .{ .file = "opts.rs", .name = "issue_1105_empty_value_short_explicit", .status = .ported },
+    .{ .file = "opts.rs", .name = "issue_1105_empty_value_short_explicit_no_space", .status = .ported },
+    .{ .file = "opts.rs", .name = "issue_1105_empty_value_short_fail", .status = .ported },
+    .{ .file = "opts.rs", .name = "long_eq_val_starts_with_eq", .status = .ported },
+    .{ .file = "opts.rs", .name = "short_eq_val_starts_with_eq", .status = .ported },
+    .{ .file = "opts.rs", .name = "require_equals_min_values_zero", .status = .ported },
+    .{ .file = "opts.rs", .name = "issue_1047_min_zero_vals_default_val", .status = .ported },
+    .{ .file = "opts.rs", .name = "leading_hyphen_with_flag_after", .status = .ported },
+    .{ .file = "opts.rs", .name = "leading_hyphen_with_flag_before", .status = .ported },
+    .{ .file = "opts.rs", .name = "leading_hyphen_with_only_pos_follows", .status = .ported },
+    .{ .file = "opts.rs", .name = "issue_2022_get_flags_misuse", .status = .ported },
+    .{ .file = "opts.rs", .name = "issue_2279", .status = .ported },
+    .{ .file = "opts.rs", .name = "leading_hyphen_fail", .status = .deferred, .note = "error-kind ordering (-2 → UnknownArgument before missing-value)" },
+    .{ .file = "opts.rs", .name = "short_non_ascii_no_space", .status = .deferred, .note = "non-ASCII short flag (short_char is u8)" },
+
     // ----- groups.rs (ArgGroup) -----
     .{ .file = "groups.rs", .name = "required_group_missing_arg", .status = .ported },
     .{ .file = "groups.rs", .name = "group_single_value", .status = .ported },

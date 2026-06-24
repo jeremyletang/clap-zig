@@ -187,8 +187,10 @@ const Parser = struct {
                         // a flag-looking token ends the option — unless the option
                         // accepts hyphen values, in which case it's another value
                         else => {
+                            // the `--` escape always ends collection (never a value),
+                            // even for allow_hyphen_values options
                             const opt = self.cmd.findArgById(self.state.opt).?;
-                            if (opt.acceptsHyphenValue(token)) {
+                            if (parsed != .escape and opt.acceptsHyphenValue(token)) {
                                 self.consumeOptValue(token);
                                 continue;
                             }

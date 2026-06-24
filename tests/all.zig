@@ -47,5 +47,6 @@ test {
     _ = @import("clap_occurrences_test.zig");
     _ = @import("clap_utf8_test.zig");
     _ = @import("clap_groups_test.zig");
+    _ = @import("clap_opts_extra_test.zig");
     _ = @import("coverage_test.zig");
 }

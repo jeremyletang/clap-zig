@@ -44,6 +44,18 @@ pub const entries = [_]Entry{
     .{ .file = "version.rs", .name = "mut_arg_version_no_auto_version", .status = .deferred, .note = "mut_arg (mutate auto version flag)" },
     .{ .file = "version.rs", .name = "propagate_version_no_version_info", .status = .deferred, .note = "debug_assert (propagate without version)" },
 
+    // ----- ignore_errors -----
+    .{ .file = "ignore_errors.rs", .name = "single_short_arg_without_value", .status = .ported },
+    .{ .file = "ignore_errors.rs", .name = "single_long_arg_without_value", .status = .ported },
+    .{ .file = "ignore_errors.rs", .name = "multiple_args_and_final_arg_without_value", .status = .ported },
+    .{ .file = "ignore_errors.rs", .name = "multiple_args_and_intermittent_arg_without_value", .status = .ported },
+    .{ .file = "ignore_errors.rs", .name = "unexpected_argument", .status = .ported },
+    .{ .file = "ignore_errors.rs", .name = "did_you_mean", .status = .ported },
+    .{ .file = "ignore_errors.rs", .name = "subcommand", .status = .ported },
+    .{ .file = "ignore_errors.rs", .name = "help_flag", .status = .ported },
+    .{ .file = "ignore_errors.rs", .name = "help_flag_subcommand", .status = .ported },
+    .{ .file = "ignore_errors.rs", .name = "version_flag", .status = .ported },
+
     // ----- subcommand value-name / help-heading settings -----
     .{ .file = "subcommands.rs", .name = "subcommand_placeholder_test", .status = .ported },
 

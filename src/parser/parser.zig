@@ -149,6 +149,16 @@ const Parser = struct {
     /// caller-supplied env lookup for `Arg.env` fallbacks (null = no env).
     env_source: ?env.EnvSource = null,
 
+    /// Under `ignore_errors`, recoverable errors are swallowed so parsing
+    /// continues with best-effort matches; help/version display still propagates.
+    fn ignorable(self: *Parser, e: Error) bool {
+        if (!self.cmd.ignore_errors) return false;
+        return switch (e.kind) {
+            .display_help, .display_version, .display_help_on_missing_argument_or_subcommand => false,
+            else => true,
+        };
+    }
+
     fn loop(self: *Parser) Outcome {
         var subcmd_name: ?[]const u8 = null;
         while (self.cursor.next()) |token| {
@@ -162,7 +172,7 @@ const Parser = struct {
                     const pending = self.cmd.findArgById(self.state.opt).?;
                     if (pending.value_terminator) |term| {
                         if (std.mem.eql(u8, token, term)) {
-                            if (self.finalizePending()) |e| return .{ .err = e };
+                            if (self.finalizePending()) |e| if (!self.ignorable(e)) return .{ .err = e };
                             continue;
                         }
                     }
@@ -179,7 +189,7 @@ const Parser = struct {
                                 self.consumeOptValue(token);
                                 continue;
                             }
-                            if (self.finalizePending()) |e| return .{ .err = e };
+                            if (self.finalizePending()) |e| if (!self.ignorable(e)) return .{ .err = e };
                         },
                     }
                 }
@@ -191,7 +201,10 @@ const Parser = struct {
                             subcmd_name = name;
                             break;
                         },
-                        .err => |e| return .{ .err = e },
+                        .err => |e| {
+                            if (self.ignorable(e)) continue;
+                            return .{ .err = e };
+                        },
                     }
                 }
                 // a leading-`-` token goes to the next positional when that
@@ -201,7 +214,10 @@ const Parser = struct {
                     if (self.handleFlagsAndOptions(token, parsed)) |outcome| {
                         switch (outcome) {
                             .consumed => continue,
-                            .ret => |o| return o,
+                            .ret => |o| {
+                                if (o == .err and self.ignorable(o.err)) continue;
+                                return o;
+                            },
                             .fall_through => {},
                             .flag_sub => |fs| {
                                 subcmd_name = fs.name;
@@ -215,12 +231,15 @@ const Parser = struct {
             switch (self.handlePositional(token)) {
                 .cont => continue,
                 .done => return .{ .matches = self.matches },
-                .err => |e| return .{ .err = e },
+                .err => |e| {
+                    if (self.ignorable(e)) continue;
+                    return .{ .err = e };
+                },
             }
         }
-        if (self.finalizePending()) |e| return .{ .err = e };
+        if (self.finalizePending()) |e| if (!self.ignorable(e)) return .{ .err = e };
         if (subcmd_name) |name| {
-            if (self.parseSubcommand(name)) |e| return .{ .err = e };
+            if (self.parseSubcommand(name)) |e| if (!self.ignorable(e)) return .{ .err = e };
         }
         self.applyEnv();
         self.applyDefaults();
@@ -729,6 +748,9 @@ const Parser = struct {
         var e = self.mkErr(.unknown_argument, self.dashed(name), null);
         const cand = self.bestLong(name) orelse return e;
         e.suggestions = self.allocator.dupe([]const u8, &.{self.dashed(cand)}) catch @panic("clap: OOM");
+        // under ignore_errors the error is dropped, so don't record the suggested
+        // arg (clap skips start_custom_arg) — it should keep its default source
+        if (self.cmd.ignore_errors) return e;
         if (self.cmd.findArgByLong(cand)) |a| {
             self.matches.startOccurrence(a.id, .command_line);
             e.used_ids = self.matches.presentIds(self.allocator);

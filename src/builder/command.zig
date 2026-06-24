@@ -70,6 +70,8 @@ pub const Command = struct {
     disable_help_subcommand: bool = false,
     disable_version_flag: bool = false,
     args_override_self: bool = false,
+    /// swallow recoverable parse errors and return best-effort matches (clap's `ignore_errors`)
+    ignore_errors: bool = false,
     /// resolve an unambiguous subcommand prefix to its full name (clap's `infer_subcommands`)
     infer_subcommands: bool = false,
     /// resolve an unambiguous `--long` prefix to its full flag (clap's `infer_long_args`)
@@ -387,6 +389,14 @@ pub const Command = struct {
         return c;
     }
 
+    /// Swallow recoverable parse errors and return best-effort matches; help and
+    /// version requests still display (clap's `ignore_errors`).
+    pub fn ignoreErrors(self: Command, yes: bool) Command {
+        var c = self;
+        c.ignore_errors = yes;
+        return c;
+    }
+
     /// Resolve an unambiguous subcommand-name prefix to the full subcommand
     /// (clap's `infer_subcommands`).
     pub fn inferSubcommands(self: Command, yes: bool) Command {
@@ -440,6 +450,7 @@ pub const Command = struct {
         }
         for (self.subcommands.items) |*sc| {
             sc.color_choice = self.color_choice; // color is global (clap)
+            if (self.ignore_errors) sc.ignore_errors = true; // propagated to subcommands
             if (self.propagate_version) {
                 sc.propagate_version = true;
                 if (sc.version_str == null) sc.version_str = self.version_str;

@@ -16,6 +16,8 @@ const Ids = std.ArrayListUnmanaged([]const u8);
 /// Post-parse validation, applied to a command and its matches recursively.
 /// Port of https://github.com/clap-rs/clap/blob/master/clap_builder/src/parser/validator.rs
 pub fn validate(allocator: std.mem.Allocator, cmd: *const Command, m: *const ArgMatches) ?Error {
+    // ignore_errors returns best-effort matches: skip all post-parse validation
+    if (cmd.ignore_errors) return null;
     if (cmd.arg_required_else_help and !m.suppliedAnything()) {
         return .{ .kind = .display_help_on_missing_argument_or_subcommand, .cmd = cmd };
     }

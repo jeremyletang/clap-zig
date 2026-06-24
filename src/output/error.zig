@@ -47,16 +47,30 @@ pub fn render(allocator: std.mem.Allocator, e: errors.Error) []const u8 {
         b.add(usage.errorUsage(allocator, e.cmd, e.used_ids orelse &.{}));
         b.addByte('\n');
     }
-    b.print("\nFor more information, try '{s}'.\n", .{helpHint(e.cmd)});
+    if (helpHint(allocator, e.cmd)) |h| {
+        b.print("\nFor more information, try '{s}'.\n", .{h});
+    } else {
+        b.addByte('\n');
+    }
     return b.items();
 }
 
-/// The token clap suggests for more help: the `--help` flag when the command has
-/// one, otherwise the `help` subcommand (e.g. a multicall dispatcher root).
-fn helpHint(cmd: *const command.Command) []const u8 {
+/// The token clap suggests for more help (clap's try-help logic): the auto or
+/// user-defined help flag (prefer `--long`, else `-short`), else the `help`
+/// subcommand, else nothing.
+fn helpHint(allocator: std.mem.Allocator, cmd: *const command.Command) ?[]const u8 {
     if (!cmd.is_multicall and !cmd.disable_help_flag) return "--help";
+    for (cmd.arg_list.items) |*a| {
+        switch (a.action_val) {
+            .help, .help_short, .help_long => {
+                if (a.long_name) |l| return std.fmt.allocPrint(allocator, "--{s}", .{l}) catch @panic("clap: OOM");
+                if (a.short_char) |c| return std.fmt.allocPrint(allocator, "-{c}", .{c}) catch @panic("clap: OOM");
+            },
+            else => {},
+        }
+    }
     if (cmd.hasSubcommands() and !cmd.disable_help_subcommand) return "help";
-    return "--help";
+    return null;
 }
 
 /// Whether this error kind prints a `Usage:` block (clap omits it for invalid_value).

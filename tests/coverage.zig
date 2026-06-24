@@ -178,6 +178,16 @@ pub const entries = [_]Entry{
     .{ .file = "occurrences.rs", .name = "grouped_interleaved_positional_occurrences", .status = .ported },
     .{ .file = "occurrences.rs", .name = "issue_2171", .status = .deferred, .note = "args_override_self short-cluster repeat (no get_occurrences)" },
 
+    // ----- help.rs: try-help hint logic -----
+    .{ .file = "help.rs", .name = "try_help_default", .status = .ported },
+    .{ .file = "help.rs", .name = "try_help_custom_flag", .status = .ported },
+    .{ .file = "help.rs", .name = "try_help_custom_flag_short", .status = .ported },
+    .{ .file = "help.rs", .name = "try_help_custom_flag_long", .status = .ported },
+    .{ .file = "help.rs", .name = "try_help_custom_flag_no_action", .status = .ported },
+    .{ .file = "help.rs", .name = "try_help_subcommand_default", .status = .ported },
+    .{ .file = "help.rs", .name = "try_help_subcommand_custom_flag", .status = .ported },
+    .{ .file = "help.rs", .name = "try_help_subcommand_custom_flag_no_action", .status = .ported },
+
     // ----- subcommands.rs (dispatch, same-name args, -- + subcommand-like value) -----
     .{ .file = "subcommands.rs", .name = "subcommand", .status = .ported },
     .{ .file = "subcommands.rs", .name = "subcommand_multiple", .status = .ported },

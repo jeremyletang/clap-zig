@@ -11,6 +11,9 @@ pub const ValueSource = enum { default_value, env, command_line };
 pub const MatchedArg = struct {
     values: std.ArrayListUnmanaged([]const u8) = .empty,
     indices: std.ArrayListUnmanaged(usize) = .empty,
+    /// number of values in each occurrence group (clap's `get_occurrences`); the
+    /// lengths partition `values` into per-occurrence runs
+    group_lens: std.ArrayListUnmanaged(usize) = .empty,
     source: ValueSource = .command_line,
     occurrences: usize = 0,
 };
@@ -40,6 +43,7 @@ pub const ArgMatches = struct {
         while (it.next()) |m| {
             m.values.deinit(self.allocator);
             m.indices.deinit(self.allocator);
+            m.group_lens.deinit(self.allocator);
         }
         self.map.deinit(self.allocator);
         if (self.sub) |s| s.matches.deinit();
@@ -64,6 +68,15 @@ pub const ArgMatches = struct {
         const m = self.getOrPut(id);
         m.values.append(self.allocator, val) catch @panic("clap: OOM matching");
         m.indices.append(self.allocator, index) catch @panic("clap: OOM matching");
+        // grow the current occurrence group (no-op for non-grouped defaults/env)
+        if (m.group_lens.items.len > 0) m.group_lens.items[m.group_lens.items.len - 1] += 1;
+    }
+
+    /// Open a new occurrence group; subsequent `pushValue`s grow it (clap groups
+    /// each option occurrence / contiguous positional run for `get_occurrences`).
+    pub fn beginGroup(self: *ArgMatches, id: []const u8) void {
+        const m = self.getOrPut(id);
+        m.group_lens.append(self.allocator, 0) catch @panic("clap: OOM matching");
     }
 
     /// Seed a default value (only if the arg is otherwise absent).
@@ -104,6 +117,7 @@ pub const ArgMatches = struct {
         if (self.map.getPtr(id)) |m| {
             m.values.clearRetainingCapacity();
             m.indices.clearRetainingCapacity();
+            m.group_lens.clearRetainingCapacity();
             m.occurrences = 0;
         }
     }
@@ -115,6 +129,7 @@ pub const ArgMatches = struct {
             var m = kv.value;
             m.values.deinit(self.allocator);
             m.indices.deinit(self.allocator);
+            m.group_lens.deinit(self.allocator);
         }
     }
 
@@ -124,7 +139,22 @@ pub const ArgMatches = struct {
         if (self.map.getPtr(id)) |m| {
             m.values.clearRetainingCapacity();
             m.indices.clearRetainingCapacity();
+            m.group_lens.clearRetainingCapacity();
         }
+    }
+
+    /// Values grouped by occurrence (clap's `get_occurrences`): each inner slice
+    /// is one option occurrence or one contiguous positional run. Null if absent.
+    pub fn getOccurrences(self: *const ArgMatches, allocator: std.mem.Allocator, id: []const u8) ?[]const []const []const u8 {
+        const m = self.map.getPtr(id) orelse return null;
+        if (m.group_lens.items.len == 0) return null;
+        const groups = allocator.alloc([]const []const u8, m.group_lens.items.len) catch @panic("clap: OOM matching");
+        var off: usize = 0;
+        for (m.group_lens.items, 0..) |len, i| {
+            groups[i] = m.values.items[off .. off + len];
+            off += len;
+        }
+        return groups;
     }
 
     pub fn setSubcommand(self: *ArgMatches, name: []const u8, matches: *ArgMatches) void {

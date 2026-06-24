@@ -44,5 +44,6 @@ test {
     _ = @import("clap_count_default_test.zig");
     _ = @import("clap_ignore_errors_test.zig");
     _ = @import("clap_multicall_test.zig");
+    _ = @import("clap_occurrences_test.zig");
     _ = @import("coverage_test.zig");
 }

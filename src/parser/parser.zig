@@ -146,6 +146,9 @@ const Parser = struct {
     pending_count: usize = 0,
     /// leftover short cluster to re-inject when dispatching a flag subcommand.
     flag_sub_inject: ?[]const u8 = null,
+    /// id whose occurrence group is currently open for appending values; a new
+    /// group begins on each option occurrence or a non-contiguous positional run
+    open_group: ?[]const u8 = null,
     /// caller-supplied env lookup for `Arg.env` fallbacks (null = no env).
     env_source: ?env.EnvSource = null,
 
@@ -352,6 +355,8 @@ const Parser = struct {
                 self.pending_count = 0;
                 if (self.cmd.findArgById(id)) |a| self.removeOverrides(a);
                 self.matches.startOccurrence(id, .command_line);
+                self.matches.beginGroup(id);
+                self.open_group = id;
                 return .consumed;
             },
             .help => |long| return .{ .ret = helpOutcome(self.cmd, long) },
@@ -609,6 +614,7 @@ const Parser = struct {
     fn recordArg(self: *Parser, a: *const Arg, vals: []const []const u8, source: ValueSource) void {
         if (source == .command_line) self.removeOverrides(a);
         self.matches.startOccurrence(a.id, source);
+        if (source == .command_line) self.openGroup(a);
         if (vals.len == 0) {
             if (a.default_missing_value) |dm| {
                 self.pushVal(a.id, dm);
@@ -660,6 +666,17 @@ const Parser = struct {
     }
 
     /// Advance the parse-index and record one value at the new slot.
+    /// Begin a new occurrence group: always for options/flags (each appearance is
+    /// an occurrence), but for a positional only when its run isn't contiguous with
+    /// the previous value (clap groups contiguous positional values together).
+    fn openGroup(self: *Parser, a: *const Arg) void {
+        if (a.isPositional()) {
+            if (self.open_group != null and std.mem.eql(u8, self.open_group.?, a.id)) return;
+        }
+        self.matches.beginGroup(a.id);
+        self.open_group = a.id;
+    }
+
     fn pushVal(self: *Parser, id: []const u8, val: []const u8) void {
         self.cur_idx += 1;
         self.matches.pushValue(id, val, self.cur_idx);

@@ -56,6 +56,18 @@ pub const entries = [_]Entry{
     .{ .file = "ignore_errors.rs", .name = "help_flag_subcommand", .status = .ported },
     .{ .file = "ignore_errors.rs", .name = "version_flag", .status = .ported },
 
+    // ----- grouped occurrences (get_occurrences) -----
+    .{ .file = "occurrences.rs", .name = "grouped_value_works", .status = .ported },
+    .{ .file = "occurrences.rs", .name = "issue_1026", .status = .ported },
+    .{ .file = "occurrences.rs", .name = "grouped_value_long_flag_delimiter", .status = .ported },
+    .{ .file = "occurrences.rs", .name = "grouped_value_short_flag_delimiter", .status = .ported },
+    .{ .file = "occurrences.rs", .name = "grouped_value_positional_arg", .status = .ported },
+    .{ .file = "occurrences.rs", .name = "grouped_value_multiple_positional_arg", .status = .ported },
+    .{ .file = "occurrences.rs", .name = "grouped_value_multiple_positional_arg_last_multiple", .status = .ported },
+    .{ .file = "occurrences.rs", .name = "grouped_interleaved_positional_values", .status = .ported },
+    .{ .file = "occurrences.rs", .name = "grouped_interleaved_positional_occurrences", .status = .ported },
+    .{ .file = "occurrences.rs", .name = "issue_2171", .status = .deferred, .note = "args_override_self short-cluster repeat (no get_occurrences)" },
+
     // ----- multicall -----
     .{ .file = "subcommands.rs", .name = "busybox_like_multicall", .status = .ported },
     .{ .file = "subcommands.rs", .name = "hostname_like_multicall", .status = .ported },

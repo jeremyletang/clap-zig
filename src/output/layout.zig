@@ -74,9 +74,14 @@ pub const Entry = struct { term: []const u8, help: []const u8 };
 /// emitted when help is empty, matching clap's output byte-for-byte. When
 /// `term_width` is set (>0), the help column word-wraps to fit it, continuation
 /// lines aligned under the help column.
+/// Render-scoped flag (clap's `next_line_help`): force every row's help onto the
+/// next line regardless of the auto-wrap heuristic. Set by `help.render`.
+pub var force_next_line: bool = false;
+
 pub fn table(buf: *Buf, indent: usize, entries: []const Entry, term_width: ?usize) void {
     var width: usize = 0;
     for (entries) |e| width = @max(width, displayWidth(e.term));
+    if (force_next_line) return tableNextLine(buf, indent, entries, term_width orelse std.math.maxInt(usize));
     if (term_width) |tw| {
         if (willWrapNextLine(entries, width, tw)) return tableNextLine(buf, indent, entries, tw);
     }

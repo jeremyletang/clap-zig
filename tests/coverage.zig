@@ -178,6 +178,16 @@ pub const entries = [_]Entry{
     .{ .file = "occurrences.rs", .name = "grouped_interleaved_positional_occurrences", .status = .ported },
     .{ .file = "occurrences.rs", .name = "issue_2171", .status = .deferred, .note = "args_override_self short-cluster repeat (no get_occurrences)" },
 
+    // ----- help.rs: global args in help / next_line_help -----
+    .{ .file = "help.rs", .name = "global_args_should_show_on_toplevel_help_message", .status = .ported },
+    .{ .file = "help.rs", .name = "global_args_should_show_on_help_message_for_subcommand", .status = .ported },
+    .{ .file = "help.rs", .name = "global_args_should_show_on_help_message_for_nested_subcommand", .status = .ported },
+    .{ .file = "help.rs", .name = "global_args_should_not_show_on_help_message_for_help_help", .status = .deferred, .note = "help target = synthetic help subcommand" },
+    .{ .file = "help.rs", .name = "next_line_arg_short", .status = .deferred, .note = "next_line_help long-mode commands no-blank nuance" },
+    .{ .file = "help.rs", .name = "next_line_command_short", .status = .deferred, .note = "next_line_help long-mode commands no-blank nuance" },
+    .{ .file = "help.rs", .name = "next_line_arg_wrapped", .status = .deferred, .note = "next_line_help + multi-paragraph wrap" },
+    .{ .file = "help.rs", .name = "next_line_command_wrapped", .status = .deferred, .note = "next_line_help + multi-paragraph wrap" },
+
     // ----- help.rs: flatten_help -----
     .{ .file = "help.rs", .name = "flatten_basic", .status = .ported },
     .{ .file = "help.rs", .name = "flatten_without_subcommands", .status = .ported },

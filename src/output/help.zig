@@ -18,6 +18,9 @@ const help_flag_help = "Print help";
 /// only when the command actually has long-only content); otherwise the compact
 /// `-h` layout. Port of https://github.com/clap-rs/clap/blob/master/clap_builder/src/output/help_template.rs
 pub fn render(allocator: std.mem.Allocator, cmd: *const Command, long: bool) []const u8 {
+    const prev_nl = layout.force_next_line;
+    layout.force_next_line = cmd.next_line_help;
+    defer layout.force_next_line = prev_nl;
     if (cmd.flatten_help and cmd.hasSubcommands()) {
         var fb = Buf{ .allocator = allocator };
         renderFlattened(&fb, cmd);

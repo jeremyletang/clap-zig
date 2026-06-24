@@ -66,6 +66,8 @@ pub const Command = struct {
     allow_external_subcommands: bool = false,
     args_conflicts_with_subcommands: bool = false,
     flatten_help: bool = false,
+    /// force every arg/subcommand to render its help on the next line (clap's `next_line_help`)
+    next_line_help: bool = false,
     disable_help_flag: bool = false,
     disable_help_subcommand: bool = false,
     disable_version_flag: bool = false,
@@ -381,6 +383,13 @@ pub const Command = struct {
     pub fn flattenHelp(self: Command, yes: bool) Command {
         var c = self;
         c.flatten_help = yes;
+        return c;
+    }
+
+    /// Force every arg/subcommand's help onto the next line (clap's `next_line_help`).
+    pub fn nextLineHelp(self: Command, yes: bool) Command {
+        var c = self;
+        c.next_line_help = yes;
         return c;
     }
 

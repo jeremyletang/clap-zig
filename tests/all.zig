@@ -56,5 +56,6 @@ test {
     _ = @import("clap_help_headings2_test.zig");
     _ = @import("clap_help_misc_test.zig");
     _ = @import("clap_subcommand_help_test.zig");
+    _ = @import("clap_override_help_test.zig");
     _ = @import("coverage_test.zig");
 }

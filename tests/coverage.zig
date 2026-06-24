@@ -178,6 +178,15 @@ pub const entries = [_]Entry{
     .{ .file = "occurrences.rs", .name = "grouped_interleaved_positional_occurrences", .status = .ported },
     .{ .file = "occurrences.rs", .name = "issue_2171", .status = .deferred, .note = "args_override_self short-cluster repeat (no get_occurrences)" },
 
+    // ----- help.rs: user-overridden help flag -----
+    .{ .file = "help.rs", .name = "prefer_user_help_short_1112", .status = .ported },
+    .{ .file = "help.rs", .name = "prefer_user_help_long_1112", .status = .ported },
+    .{ .file = "help.rs", .name = "override_help_short", .status = .ported },
+    .{ .file = "help.rs", .name = "override_help_long", .status = .ported },
+    .{ .file = "help.rs", .name = "override_help_about", .status = .ported },
+    .{ .file = "help.rs", .name = "visible_aliases_with_short_help", .status = .deferred, .note = "inline subcommand visible short/long aliases + alias-list wrap" },
+    .{ .file = "help.rs", .name = "visible_aliases_with_long_help", .status = .deferred, .note = "inline subcommand visible short/long aliases + alias-list wrap" },
+
     // ----- help.rs: subcommand help dispatch -----
     .{ .file = "help.rs", .name = "subcommand_short_help", .status = .ported },
     .{ .file = "help.rs", .name = "subcommand_long_help", .status = .ported },

@@ -65,6 +65,8 @@ pub const Command = struct {
     arg_required_else_help: bool = false,
     allow_external_subcommands: bool = false,
     args_conflicts_with_subcommands: bool = false,
+    /// a present subcommand waives the parent's required args (clap's `subcommand_negates_reqs`)
+    subcommand_negates_reqs: bool = false,
     flatten_help: bool = false,
     /// force every arg/subcommand to render its help on the next line (clap's `next_line_help`)
     next_line_help: bool = false,
@@ -371,6 +373,13 @@ pub const Command = struct {
     pub fn allowExternalSubcommands(self: Command, yes: bool) Command {
         var c = self;
         c.allow_external_subcommands = yes;
+        return c;
+    }
+
+    /// A present subcommand waives the parent's required args (clap's `subcommand_negates_reqs`).
+    pub fn subcommandNegatesReqs(self: Command, yes: bool) Command {
+        var c = self;
+        c.subcommand_negates_reqs = yes;
         return c;
     }
 

@@ -25,7 +25,10 @@ pub fn validate(allocator: std.mem.Allocator, cmd: *const Command, m: *const Arg
     if (checkPossibleValues(allocator, cmd, m)) |e| return e;
     if (checkArgConflicts(allocator, cmd, m)) |e| return e;
     if (checkGroupConflicts(allocator, cmd, m)) |e| return e;
-    if (checkRequired(allocator, cmd, m)) |e| return e;
+    // a present subcommand negates the parent's required args (clap's subcommand_negates_reqs)
+    if (!(cmd.subcommand_negates_reqs and m.subcommand() != null)) {
+        if (checkRequired(allocator, cmd, m)) |e| return e;
+    }
     if (checkSubcommandRequired(cmd, m)) |e| return e;
     return validateSubcommand(allocator, cmd, m);
 }

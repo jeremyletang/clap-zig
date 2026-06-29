@@ -55,5 +55,10 @@ test {
     _ = @import("clap_global_args_help_test.zig");
     _ = @import("clap_help_headings2_test.zig");
     _ = @import("clap_help_misc_test.zig");
+    _ = @import("clap_subcommand_help_test.zig");
+    _ = @import("clap_override_help_test.zig");
+    _ = @import("clap_disable_help_test.zig");
+    _ = @import("clap_app_settings_test.zig");
+    _ = @import("clap_aaos_test.zig");
     _ = @import("coverage_test.zig");
 }

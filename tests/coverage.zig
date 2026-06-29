@@ -178,6 +178,32 @@ pub const entries = [_]Entry{
     .{ .file = "occurrences.rs", .name = "grouped_interleaved_positional_occurrences", .status = .ported },
     .{ .file = "occurrences.rs", .name = "issue_2171", .status = .deferred, .note = "args_override_self short-cluster repeat (no get_occurrences)" },
 
+    // ----- help.rs: disable_help_flag / override help subcommand -----
+    .{ .file = "help.rs", .name = "disabled_help_flag", .status = .ported },
+    .{ .file = "help.rs", .name = "disabled_help_flag_and_subcommand", .status = .ported },
+    .{ .file = "help.rs", .name = "override_help_flag_using_long", .status = .ported },
+    .{ .file = "help.rs", .name = "override_help_flag_using_short", .status = .ported },
+    .{ .file = "help.rs", .name = "override_help_subcommand", .status = .ported },
+    .{ .file = "help.rs", .name = "disable_help_flag_affects_help_subcommand", .status = .deferred, .note = "find_subcommand/get_arguments reflection" },
+    .{ .file = "help.rs", .name = "parent_cmd_req_in_usage_with_help_flag", .status = .deferred, .note = "parent required args inlined in subcommand usage" },
+
+    // ----- help.rs: user-overridden help flag -----
+    .{ .file = "help.rs", .name = "prefer_user_help_short_1112", .status = .ported },
+    .{ .file = "help.rs", .name = "prefer_user_help_long_1112", .status = .ported },
+    .{ .file = "help.rs", .name = "override_help_short", .status = .ported },
+    .{ .file = "help.rs", .name = "override_help_long", .status = .ported },
+    .{ .file = "help.rs", .name = "override_help_about", .status = .ported },
+    .{ .file = "help.rs", .name = "visible_aliases_with_short_help", .status = .deferred, .note = "inline subcommand visible short/long aliases + alias-list wrap" },
+    .{ .file = "help.rs", .name = "visible_aliases_with_long_help", .status = .deferred, .note = "inline subcommand visible short/long aliases + alias-list wrap" },
+
+    // ----- help.rs: subcommand help dispatch -----
+    .{ .file = "help.rs", .name = "subcommand_short_help", .status = .ported },
+    .{ .file = "help.rs", .name = "subcommand_long_help", .status = .ported },
+    .{ .file = "help.rs", .name = "subcommand_help_rev", .status = .ported },
+    .{ .file = "help.rs", .name = "multi_level_sc_help", .status = .ported },
+    .{ .file = "help.rs", .name = "subcmd_help_subcmd_help", .status = .deferred, .note = "`help help` synthetic help-subcommand target" },
+    .{ .file = "help.rs", .name = "help_subcmd_help", .status = .deferred, .note = "`help help` synthetic help-subcommand target" },
+
     // ----- help.rs: dotted positionals, last usage, default/hidden in help -----
     .{ .file = "help.rs", .name = "positional_multiple_values_is_dotted", .status = .ported },
     .{ .file = "help.rs", .name = "positional_multiple_occurrences_is_dotted", .status = .ported },
@@ -273,6 +299,31 @@ pub const entries = [_]Entry{
 
     // ----- subcommand value-name / help-heading settings -----
     .{ .file = "subcommands.rs", .name = "subcommand_placeholder_test", .status = .ported },
+
+    // ----- app_settings.rs: aaos (args_override_self + overrides/append/delim) -----
+    .{ .file = "app_settings.rs", .name = "aaos_opts_w_other_overrides", .status = .ported },
+    .{ .file = "app_settings.rs", .name = "aaos_opts_w_other_overrides_2", .status = .ported },
+    .{ .file = "app_settings.rs", .name = "aaos_opts_w_other_overrides_rev", .status = .ported },
+    .{ .file = "app_settings.rs", .name = "aaos_opts_w_other_overrides_rev_2", .status = .ported },
+    .{ .file = "app_settings.rs", .name = "aaos_opts_w_override_as_conflict_1", .status = .ported },
+    .{ .file = "app_settings.rs", .name = "aaos_opts_w_override_as_conflict_2", .status = .ported },
+    .{ .file = "app_settings.rs", .name = "aaos_opts_mult", .status = .ported },
+    .{ .file = "app_settings.rs", .name = "aaos_opts_mult_req_delims", .status = .ported },
+    .{ .file = "app_settings.rs", .name = "aaos_pos_mult", .status = .ported },
+    .{ .file = "app_settings.rs", .name = "aaos_option_use_delim_false", .status = .ported },
+
+    // ----- app_settings.rs: arg_required_else_help / subcommand_required / negate -----
+    .{ .file = "app_settings.rs", .name = "arg_required_else_help", .status = .ported },
+    .{ .file = "app_settings.rs", .name = "arg_required_else_help_with_default", .status = .ported },
+    .{ .file = "app_settings.rs", .name = "arg_required_else_help_over_req_arg", .status = .ported },
+    .{ .file = "app_settings.rs", .name = "arg_required_else_help_over_req_subcommand", .status = .ported },
+    .{ .file = "app_settings.rs", .name = "arg_required_else_help_error_message", .status = .ported },
+    .{ .file = "app_settings.rs", .name = "sub_command_required", .status = .ported },
+    .{ .file = "app_settings.rs", .name = "sub_command_required_error", .status = .ported },
+    .{ .file = "app_settings.rs", .name = "sub_command_negate_required", .status = .ported },
+    .{ .file = "app_settings.rs", .name = "sub_command_negate_required_2", .status = .ported },
+    .{ .file = "app_settings.rs", .name = "disable_help_subcommand", .status = .ported },
+    .{ .file = "app_settings.rs", .name = "propagate_vals_down", .status = .ported },
 
     // ----- trailing_var_arg -----
     .{ .file = "app_settings.rs", .name = "trailing_var_arg_with_hyphen_values_escape_first", .status = .ported },

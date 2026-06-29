@@ -300,6 +300,18 @@ pub const entries = [_]Entry{
     // ----- subcommand value-name / help-heading settings -----
     .{ .file = "subcommands.rs", .name = "subcommand_placeholder_test", .status = .ported },
 
+    // ----- app_settings.rs: aaos (args_override_self + overrides/append/delim) -----
+    .{ .file = "app_settings.rs", .name = "aaos_opts_w_other_overrides", .status = .ported },
+    .{ .file = "app_settings.rs", .name = "aaos_opts_w_other_overrides_2", .status = .ported },
+    .{ .file = "app_settings.rs", .name = "aaos_opts_w_other_overrides_rev", .status = .ported },
+    .{ .file = "app_settings.rs", .name = "aaos_opts_w_other_overrides_rev_2", .status = .ported },
+    .{ .file = "app_settings.rs", .name = "aaos_opts_w_override_as_conflict_1", .status = .ported },
+    .{ .file = "app_settings.rs", .name = "aaos_opts_w_override_as_conflict_2", .status = .ported },
+    .{ .file = "app_settings.rs", .name = "aaos_opts_mult", .status = .ported },
+    .{ .file = "app_settings.rs", .name = "aaos_opts_mult_req_delims", .status = .ported },
+    .{ .file = "app_settings.rs", .name = "aaos_pos_mult", .status = .ported },
+    .{ .file = "app_settings.rs", .name = "aaos_option_use_delim_false", .status = .ported },
+
     // ----- app_settings.rs: arg_required_else_help / subcommand_required / negate -----
     .{ .file = "app_settings.rs", .name = "arg_required_else_help", .status = .ported },
     .{ .file = "app_settings.rs", .name = "arg_required_else_help_with_default", .status = .ported },

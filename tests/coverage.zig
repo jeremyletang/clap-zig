@@ -178,6 +178,15 @@ pub const entries = [_]Entry{
     .{ .file = "occurrences.rs", .name = "grouped_interleaved_positional_occurrences", .status = .ported },
     .{ .file = "occurrences.rs", .name = "issue_2171", .status = .deferred, .note = "args_override_self short-cluster repeat (no get_occurrences)" },
 
+    // ----- help.rs: disable_help_flag / override help subcommand -----
+    .{ .file = "help.rs", .name = "disabled_help_flag", .status = .ported },
+    .{ .file = "help.rs", .name = "disabled_help_flag_and_subcommand", .status = .ported },
+    .{ .file = "help.rs", .name = "override_help_flag_using_long", .status = .ported },
+    .{ .file = "help.rs", .name = "override_help_flag_using_short", .status = .ported },
+    .{ .file = "help.rs", .name = "override_help_subcommand", .status = .ported },
+    .{ .file = "help.rs", .name = "disable_help_flag_affects_help_subcommand", .status = .deferred, .note = "find_subcommand/get_arguments reflection" },
+    .{ .file = "help.rs", .name = "parent_cmd_req_in_usage_with_help_flag", .status = .deferred, .note = "parent required args inlined in subcommand usage" },
+
     // ----- help.rs: user-overridden help flag -----
     .{ .file = "help.rs", .name = "prefer_user_help_short_1112", .status = .ported },
     .{ .file = "help.rs", .name = "prefer_user_help_long_1112", .status = .ported },

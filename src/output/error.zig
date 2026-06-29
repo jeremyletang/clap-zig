@@ -168,7 +168,22 @@ fn appendMessage(b: *Buf, e: errors.Error) void {
             b.add("the following required arguments were not provided:\n  ");
             b.add(arg);
         },
-        .missing_subcommand => b.print("'{s}' requires a subcommand but one was not provided", .{e.cmd.displayName()}),
+        .missing_subcommand => {
+            b.print("'{s}' requires a subcommand but one was not provided", .{e.cmd.displayName()});
+            b.add("\n  [subcommands: ");
+            var first = true;
+            for (e.cmd.subcommands.items) |*sc| {
+                if (sc.is_hidden) continue;
+                if (!first) b.add(", ");
+                b.add(sc.name);
+                first = false;
+            }
+            if (!e.cmd.disable_help_subcommand) {
+                if (!first) b.add(", ");
+                b.add("help");
+            }
+            b.add("]");
+        },
         .display_help, .display_help_on_missing_argument_or_subcommand, .display_version => unreachable,
     }
 }

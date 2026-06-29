@@ -300,6 +300,19 @@ pub const entries = [_]Entry{
     // ----- subcommand value-name / help-heading settings -----
     .{ .file = "subcommands.rs", .name = "subcommand_placeholder_test", .status = .ported },
 
+    // ----- app_settings.rs: arg_required_else_help / subcommand_required / negate -----
+    .{ .file = "app_settings.rs", .name = "arg_required_else_help", .status = .ported },
+    .{ .file = "app_settings.rs", .name = "arg_required_else_help_with_default", .status = .ported },
+    .{ .file = "app_settings.rs", .name = "arg_required_else_help_over_req_arg", .status = .ported },
+    .{ .file = "app_settings.rs", .name = "arg_required_else_help_over_req_subcommand", .status = .ported },
+    .{ .file = "app_settings.rs", .name = "arg_required_else_help_error_message", .status = .ported },
+    .{ .file = "app_settings.rs", .name = "sub_command_required", .status = .ported },
+    .{ .file = "app_settings.rs", .name = "sub_command_required_error", .status = .ported },
+    .{ .file = "app_settings.rs", .name = "sub_command_negate_required", .status = .ported },
+    .{ .file = "app_settings.rs", .name = "sub_command_negate_required_2", .status = .ported },
+    .{ .file = "app_settings.rs", .name = "disable_help_subcommand", .status = .ported },
+    .{ .file = "app_settings.rs", .name = "propagate_vals_down", .status = .ported },
+
     // ----- trailing_var_arg -----
     .{ .file = "app_settings.rs", .name = "trailing_var_arg_with_hyphen_values_escape_first", .status = .ported },
     .{ .file = "app_settings.rs", .name = "trailing_var_arg_with_hyphen_values_escape_middle", .status = .ported },
